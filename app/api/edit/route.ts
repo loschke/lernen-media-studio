@@ -15,6 +15,12 @@ import {
   fetchImageBuffer,
   r2Configured,
 } from '@/lib/r2';
+import {
+  MAX_PROMPT_CHARS,
+  MAX_REF_IMAGES,
+  MAX_UPLOAD_BYTES,
+  base64ByteLength,
+} from '@/lib/validation';
 
 export const maxDuration = 60;
 
@@ -62,6 +68,28 @@ export async function POST(req: Request) {
         JSON.stringify({ error: 'Prompt und mindestens ein Bild sind erforderlich.' }),
         { status: 400 }
       );
+    }
+    if (typeof prompt !== 'string' || prompt.length > MAX_PROMPT_CHARS) {
+      return new Response(
+        JSON.stringify({ error: `Prompt zu lang (max. ${MAX_PROMPT_CHARS} Zeichen).` }),
+        { status: 400 }
+      );
+    }
+    if (imageRefs.length > MAX_REF_IMAGES) {
+      return new Response(
+        JSON.stringify({ error: `Maximal ${MAX_REF_IMAGES} Referenzbilder erlaubt.` }),
+        { status: 400 }
+      );
+    }
+    for (const ref of imageRefs) {
+      if (ref.source === 'upload' && base64ByteLength(ref.data) > MAX_UPLOAD_BYTES) {
+        return new Response(
+          JSON.stringify({
+            error: `Upload zu groß (max. ${Math.round(MAX_UPLOAD_BYTES / 1024 / 1024)} MB pro Bild).`,
+          }),
+          { status: 400 }
+        );
+      }
     }
 
     const chosenModel: EditCapableModelId =

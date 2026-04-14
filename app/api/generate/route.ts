@@ -10,6 +10,7 @@ import {
 } from '@/lib/models';
 import { getSessionId } from '@/lib/session';
 import { uploadImage, getImageUrl, r2Configured } from '@/lib/r2';
+import { MAX_PROMPT_CHARS } from '@/lib/validation';
 
 export const maxDuration = 60;
 
@@ -37,8 +38,14 @@ export async function POST(req: Request) {
 
     const { prompt, aspectRatio = '1:1', model } = await req.json();
 
-    if (!prompt) {
+    if (!prompt || typeof prompt !== 'string') {
       return new Response(JSON.stringify({ error: 'Prompt is required' }), { status: 400 });
+    }
+    if (prompt.length > MAX_PROMPT_CHARS) {
+      return new Response(
+        JSON.stringify({ error: `Prompt zu lang (max. ${MAX_PROMPT_CHARS} Zeichen).` }),
+        { status: 400 }
+      );
     }
 
     const chosenModel: ImageModelId =

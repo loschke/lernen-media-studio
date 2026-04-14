@@ -13,6 +13,11 @@ import {
 } from "@/lib/models";
 import { getSessionId } from "@/lib/session";
 import { fetchImageBuffer, r2Configured } from "@/lib/r2";
+import {
+  MAX_VIDEO_PROMPT_CHARS,
+  MAX_UPLOAD_BYTES,
+  base64ByteLength,
+} from "@/lib/validation";
 
 export const maxDuration = 60;
 
@@ -83,6 +88,22 @@ export async function POST(req: Request) {
 
     if (!body.prompt || typeof body.prompt !== "string") {
       return new Response(JSON.stringify({ error: "Prompt ist erforderlich." }), { status: 400 });
+    }
+    if (body.prompt.length > MAX_VIDEO_PROMPT_CHARS) {
+      return new Response(
+        JSON.stringify({ error: `Prompt zu lang (max. ${MAX_VIDEO_PROMPT_CHARS} Zeichen).` }),
+        { status: 400 }
+      );
+    }
+    for (const frame of [body.startFrame, body.endFrame]) {
+      if (frame?.source === "upload" && base64ByteLength(frame.data) > MAX_UPLOAD_BYTES) {
+        return new Response(
+          JSON.stringify({
+            error: `Frame zu groß (max. ${Math.round(MAX_UPLOAD_BYTES / 1024 / 1024)} MB).`,
+          }),
+          { status: 400 }
+        );
+      }
     }
 
     const model: VideoModelId =

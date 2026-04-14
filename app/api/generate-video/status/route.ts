@@ -1,5 +1,6 @@
 import { getSessionId } from "@/lib/session";
 import { uploadMedia, getMediaUrl, r2Configured } from "@/lib/r2";
+import { isValidOperationName, MAX_VIDEO_PROMPT_CHARS } from "@/lib/validation";
 
 export const maxDuration = 60;
 
@@ -50,8 +51,14 @@ export async function POST(req: Request) {
       prompt: string;
     };
 
-    if (!operationName) {
-      return new Response(JSON.stringify({ error: "operationName fehlt." }), { status: 400 });
+    if (!isValidOperationName(operationName)) {
+      return new Response(JSON.stringify({ error: "Ungültige operationName." }), { status: 400 });
+    }
+    if (typeof prompt !== "string" || prompt.length > MAX_VIDEO_PROMPT_CHARS) {
+      return new Response(
+        JSON.stringify({ error: `Prompt fehlt oder zu lang (max. ${MAX_VIDEO_PROMPT_CHARS} Zeichen).` }),
+        { status: 400 }
+      );
     }
 
     // Poll the long-running operation via REST. The SDK's getVideosOperation
