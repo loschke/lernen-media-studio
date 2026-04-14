@@ -10,11 +10,15 @@ export type ImageModel = (typeof IMAGE_MODELS)[number];
 export const DEFAULT_MODEL: ImageModelId = "gemini-2.5-flash-image";
 
 /**
- * Credit cost for a single API call with the given model. Used for both
- * generate and edit. Falls back to 1 for unknown models.
+ * Credit cost for a single API call with the given model. Covers image +
+ * video models. Falls back to 1 for unknown models.
  */
 export function getModelCost(modelId: string): number {
-  return IMAGE_MODELS.find((m) => m.id === modelId)?.cost ?? 1;
+  return (
+    IMAGE_MODELS.find((m) => m.id === modelId)?.cost ??
+    VIDEO_MODELS.find((m) => m.id === modelId)?.cost ??
+    1
+  );
 }
 
 export const ALLOWED_MODEL_IDS: ReadonlySet<string> = new Set(
@@ -55,3 +59,47 @@ export const DEFAULT_IMAGE_SIZE: ImageSize = "1K";
 export const ALLOWED_IMAGE_SIZES: ReadonlySet<string> = new Set(
   IMAGE_SIZES.map((s) => s.id)
 );
+
+// --- Video Models (Veo 3.1) ---------------------------------------------
+
+export const VIDEO_MODELS = [
+  {
+    id: "veo-3.1-lite-generate-preview",
+    label: "Veo 3.1 Lite",
+    cost: 10,
+    supportsEndFrame: false,
+  },
+  {
+    id: "veo-3.1-fast-generate-preview",
+    label: "Veo 3.1 Fast",
+    cost: 20,
+    supportsEndFrame: true,
+  },
+  {
+    id: "veo-3.1-generate-preview",
+    label: "Veo 3.1",
+    cost: 40,
+    supportsEndFrame: true,
+  },
+] as const;
+
+export type VideoModelId = (typeof VIDEO_MODELS)[number]["id"];
+export type VideoModel = (typeof VIDEO_MODELS)[number];
+
+export const DEFAULT_VIDEO_MODEL: VideoModelId = "veo-3.1-lite-generate-preview";
+
+export const ALLOWED_VIDEO_MODEL_IDS: ReadonlySet<string> = new Set(
+  VIDEO_MODELS.map((m) => m.id)
+);
+
+export function videoSupportsEndFrame(modelId: string): boolean {
+  return VIDEO_MODELS.find((m) => m.id === modelId)?.supportsEndFrame ?? false;
+}
+
+export const VIDEO_ASPECT_RATIOS = ["16:9", "9:16"] as const;
+export type VideoAspectRatio = (typeof VIDEO_ASPECT_RATIOS)[number];
+export const DEFAULT_VIDEO_ASPECT_RATIO: VideoAspectRatio = "16:9";
+
+export const VIDEO_DURATIONS = [4, 6, 8] as const;
+export type VideoDuration = (typeof VIDEO_DURATIONS)[number];
+export const DEFAULT_VIDEO_DURATION: VideoDuration = 6;

@@ -72,7 +72,7 @@ export async function POST(req: Request) {
         const buffer = Buffer.from(img.uint8Array);
         const mediaType = img.mediaType || 'image/png';
         const timestamp = Date.now();
-        await uploadImage(sessionId, id, buffer, { prompt, timestamp, mediaType });
+        await uploadImage(sessionId, id, buffer, { prompt, timestamp, mediaType, ext: 'png' });
         const url = await getImageUrl(sessionId, id);
         return { id, url, mediaType, prompt, timestamp };
       })

@@ -5,17 +5,27 @@ import { useGallery, GalleryImage } from "@/hooks/useGallery";
 
 import { GenerateTab } from "@/components/generate/generate-tab";
 import { EditTab } from "@/components/edit/edit-tab";
+import { VideoTab } from "@/components/video/video-tab";
 import { ChatTab } from "@/components/chat/chat-tab";
 import { GalleryView } from "@/components/gallery/gallery-view";
 
 const MODES = [
   { id: "generate", label: "Generieren" },
   { id: "edit", label: "Bearbeiten" },
-  { id: "chat", label: "Chat" },
-  { id: "gallery", label: "Galerie" },
+  { id: "video", label: "Video" },
+  { id: "gallery", label: "Bibliothek" },
+  { id: "chat", label: "Assistent" },
 ] as const;
 
 type Mode = (typeof MODES)[number]["id"];
+
+function extForDownload(mediaType: string): string {
+  if (mediaType.startsWith("video/mp4")) return "mp4";
+  if (mediaType.startsWith("video/")) return mediaType.split("/")[1] || "mp4";
+  if (mediaType.startsWith("image/jpeg")) return "jpg";
+  if (mediaType.startsWith("image/webp")) return "webp";
+  return "png";
+}
 
 export default function MediaStudio() {
   const {
@@ -30,17 +40,19 @@ export default function MediaStudio() {
   const [pendingEditImage, setPendingEditImage] = useState<GalleryImage | null>(
     null
   );
+  const [pendingVideoStartFrame, setPendingVideoStartFrame] =
+    useState<GalleryImage | null>(null);
 
   const handleDownload = async (img: GalleryImage) => {
-    // Fetch via signed URL, then trigger browser download. Direct anchor
-    // download won't work cross-origin without a proper Content-Disposition.
     try {
       const res = await fetch(img.url);
       const blob = await res.blob();
       const objectUrl = URL.createObjectURL(blob);
       const link = document.createElement("a");
       link.href = objectUrl;
-      link.download = `bildwerkstatt-${img.id.substring(0, 8)}.png`;
+      link.download = `bildwerkstatt-${img.id.substring(0, 8)}.${extForDownload(
+        img.mediaType
+      )}`;
       link.click();
       URL.revokeObjectURL(objectUrl);
     } catch (err) {
@@ -53,8 +65,16 @@ export default function MediaStudio() {
     setMode("edit");
   };
 
-  const handleConsumePending = useCallback(() => {
+  const handleLoadIntoVideo = (img: GalleryImage) => {
+    setPendingVideoStartFrame(img);
+    setMode("video");
+  };
+
+  const handleConsumePendingEdit = useCallback(() => {
     setPendingEditImage(null);
+  }, []);
+  const handleConsumePendingVideo = useCallback(() => {
+    setPendingVideoStartFrame(null);
   }, []);
 
   if (!isLoaded) return null;
@@ -154,7 +174,17 @@ export default function MediaStudio() {
             addImage={addImage}
             decrementCount={decrementCount}
             pendingImage={pendingEditImage}
-            onConsumePending={handleConsumePending}
+            onConsumePending={handleConsumePendingEdit}
+          />
+        )}
+        {mode === "video" && (
+          <VideoTab
+            galleryImages={images}
+            generationsLeft={generationsLeft}
+            addVideo={addImage}
+            decrementCount={decrementCount}
+            pendingStartFrame={pendingVideoStartFrame}
+            onConsumePending={handleConsumePendingVideo}
           />
         )}
         {mode === "chat" && <ChatTab />}
@@ -164,6 +194,7 @@ export default function MediaStudio() {
             onDownload={handleDownload}
             onRemove={removeImage}
             onLoadIntoEdit={handleLoadIntoEdit}
+            onLoadIntoVideo={handleLoadIntoVideo}
           />
         )}
       </main>

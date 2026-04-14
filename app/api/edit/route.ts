@@ -117,6 +117,7 @@ export async function POST(req: Request) {
           prompt: taggedPrompt,
           timestamp,
           mediaType,
+          ext: 'png',
         });
         const url = await getImageUrl(sessionId, id);
         return { id, url, mediaType, prompt: taggedPrompt, timestamp };

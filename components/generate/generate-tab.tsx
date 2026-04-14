@@ -36,7 +36,12 @@ export function GenerateTab({
   // Wenn der User "Neues Bild" klickt, merken wir uns die ID des aktuellen
   // Bildes und blenden es aus dem Canvas aus. Sobald ein neues generiert
   // wird, ersetzt es das alte (andere ID) und der Canvas zeigt es wieder.
-  const [dismissedId, setDismissedId] = useState<string | null>(null);
+  // Beim Mount mit leerem Canvas starten: das aktuell oberste Bild wird
+  // per ID ausgeblendet. Tab-Wechsel unmountet die Komponente, beim
+  // Wiedereintritt läuft diese Initialisierung erneut.
+  const [dismissedId, setDismissedId] = useState<string | null>(
+    () => images.find((i) => i.mediaType.startsWith("image/"))?.id ?? null
+  );
 
   const handleGenerate = async () => {
     if (!prompt.trim()) return;
@@ -69,14 +74,16 @@ export function GenerateTab({
   };
 
   const handleNewImage = () => {
-    if (images.length > 0) setDismissedId(images[0].id);
+    if (latestImage) setDismissedId(latestImage.id);
     setPrompt("");
     setError("");
   };
 
   if (!isLoaded) return null;
 
-  const showCanvasImage = images.length > 0 && images[0].id !== dismissedId;
+  // Nur Bilder im Generate-Canvas zeigen (Videos sind nicht darstellbar).
+  const latestImage = images.find((i) => i.mediaType.startsWith("image/"));
+  const showCanvasImage = !!latestImage && latestImage.id !== dismissedId;
   const generateCost = getModelCost(model);
 
   return (
@@ -100,7 +107,7 @@ export function GenerateTab({
       <div className="flex-1 flex items-center justify-center overflow-hidden p-6 min-h-0">
         {showCanvasImage ? (
           <ImagePreview
-            image={images[0]}
+            image={latestImage!}
             onDownload={onDownload}
             onLoadIntoEdit={onLoadIntoEdit}
           />

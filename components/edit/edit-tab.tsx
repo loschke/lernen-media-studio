@@ -370,14 +370,16 @@ export function EditTab({
       )}
 
       {/* Gallery thumbnail strip — only when there are gallery images and no result */}
-      {!result && !isEditing && galleryImages.length > 0 && (
+      {!result && !isEditing && galleryImages.some((g) => g.mediaType.startsWith("image/")) && (
         <div className="shrink-0 px-4 md:px-8 pb-2">
           <div className="max-w-3xl mx-auto">
             <p className="text-xs text-muted-foreground mb-2">
-              Aus Galerie wählen
+              Aus Bibliothek wählen
             </p>
             <div className="flex gap-2 overflow-x-auto no-scrollbar pb-1">
-              {galleryImages.map((img) => {
+              {galleryImages
+                .filter((g) => g.mediaType.startsWith("image/"))
+                .map((img) => {
                 const isSelected = selectedImages.some(
                   (s) => s.source === "gallery" && s.id === img.id
                 );
