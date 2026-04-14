@@ -1,34 +1,83 @@
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 
+const AUTH_COOKIE = "media_studio_auth";
+const PUBLIC_PATHS = new Set<string>(["/login", "/api/login", "/robots.txt"]);
+
+function securityHeaders(res: NextResponse) {
+  res.headers.set("X-Frame-Options", "DENY");
+  res.headers.set("X-Content-Type-Options", "nosniff");
+  res.headers.set("Referrer-Policy", "no-referrer");
+  res.headers.set(
+    "Permissions-Policy",
+    "camera=(), microphone=(), geolocation=()"
+  );
+  res.headers.set(
+    "X-Robots-Tag",
+    "noindex, nofollow, noarchive, nosnippet"
+  );
+  return res;
+}
+
 export function proxy(request: NextRequest) {
-  // Wenn der Pfad /_next oder /favicon.ico ist, ignorieren wir ihn
-  if (request.nextUrl.pathname.startsWith("/_next") || request.nextUrl.pathname.startsWith("/favicon.ico")) {
-    return NextResponse.next();
+  const { pathname } = request.nextUrl;
+
+  // Static assets and Next internals — pass through but add headers.
+  if (
+    pathname.startsWith("/_next") ||
+    pathname.startsWith("/favicon.ico")
+  ) {
+    return securityHeaders(NextResponse.next());
   }
 
-  // Passwort-Check via Cookie
-  const isAuthenticated = request.cookies.get("media_studio_auth")?.value === process.env.APP_PASSWORD;
+  const expected = process.env.APP_PASSWORD;
+  const isAuthenticated =
+    expected !== undefined &&
+    request.cookies.get(AUTH_COOKIE)?.value === expected;
 
-  // Login-Route
-  if (request.nextUrl.pathname === "/login") {
-    if (isAuthenticated) {
-      return NextResponse.redirect(new URL("/", request.url));
+  // Fail closed if no APP_PASSWORD is configured — never serve open.
+  if (!expected) {
+    if (pathname.startsWith("/api/")) {
+      return securityHeaders(
+        NextResponse.json(
+          { error: "Server nicht konfiguriert." },
+          { status: 500 }
+        )
+      );
     }
-    return NextResponse.next();
-  }
-
-  // Falls nicht authentifiziert und nicht auf Login, redirect oder 401
-  if (!isAuthenticated && process.env.APP_PASSWORD) {
-    if (request.nextUrl.pathname.startsWith("/api/")) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    if (pathname !== "/login") {
+      return securityHeaders(
+        NextResponse.redirect(new URL("/login", request.url))
+      );
     }
-    return NextResponse.redirect(new URL("/login", request.url));
+    return securityHeaders(NextResponse.next());
   }
 
-  return NextResponse.next();
+  // Already authenticated and hitting /login → bounce to home.
+  if (pathname === "/login" && isAuthenticated) {
+    return securityHeaders(NextResponse.redirect(new URL("/", request.url)));
+  }
+
+  if (PUBLIC_PATHS.has(pathname)) {
+    return securityHeaders(NextResponse.next());
+  }
+
+  if (!isAuthenticated) {
+    if (pathname.startsWith("/api/")) {
+      return securityHeaders(
+        NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+      );
+    }
+    return securityHeaders(
+      NextResponse.redirect(new URL("/login", request.url))
+    );
+  }
+
+  return securityHeaders(NextResponse.next());
 }
 
 export const config = {
-  matcher: ["/((?!api/login|_next/static|_next/image|favicon.ico).*)"],
+  matcher: [
+    "/((?!_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp|mp4|woff2?)).*)",
+  ],
 };
