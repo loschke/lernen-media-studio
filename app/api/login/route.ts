@@ -4,7 +4,8 @@ export async function POST(req: Request) {
   const { password } = await req.json();
 
   if (password === process.env.APP_PASSWORD) {
-    const response = NextResponse.json({ success: true });
+    const sessionId = crypto.randomUUID();
+    const response = NextResponse.json({ success: true, sessionId });
     // SetCookie - 24 Stunden gültig
     response.cookies.set("media_studio_auth", password, {
       httpOnly: true,

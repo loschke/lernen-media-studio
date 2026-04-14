@@ -4,7 +4,13 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
 
 export default function LoginPage() {
   const [password, setPassword] = useState("");
@@ -23,31 +29,44 @@ export default function LoginPage() {
 
     if (res.ok) {
       router.push("/");
-      router.refresh(); // Damit die Middleware den Cookie direkt richtig auflöst
+      router.refresh();
     } else {
       setError("Falsches Passwort. Bitte versuche es erneut.");
     }
   };
 
   return (
-    <div className="flex h-screen w-full items-center justify-center p-4">
-      <Card className="w-full max-w-sm">
+    <div className="flex h-screen w-full flex-col items-center justify-center gap-8 bg-background p-4">
+      {/* Branding */}
+      <div className="text-center space-y-2">
+        <p className="text-3xl font-black tracking-tight text-foreground">
+          lernen<span className="font-serif italic text-primary">.diy</span>
+        </p>
+        <p className="text-lg text-muted-foreground font-serif italic">
+          Bildwerkstatt
+        </p>
+        <div className="h-px w-16 bg-primary/40 mx-auto mt-4" />
+      </div>
+
+      {/* Login Card */}
+      <Card className="w-full max-w-sm bg-card">
         <CardHeader>
-          <CardTitle>Media Studio Login</CardTitle>
-          <CardDescription>Bitte gib das globale Passwort ein, um auf die Demo zuzugreifen.</CardDescription>
+          <CardTitle className="text-lg font-bold">Workshop-Zugang</CardTitle>
+          <CardDescription>Bitte Passwort eingeben</CardDescription>
         </CardHeader>
         <CardContent>
           <form onSubmit={handleLogin} className="space-y-4">
-            <div className="space-y-2">
-              <Input
-                type="password"
-                placeholder="Passwort"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-              />
-            </div>
-            {error && <div className="text-sm text-red-500">{error}</div>}
-            <Button type="submit" className="w-full">
+            <Input
+              type="password"
+              placeholder="Passwort"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+            />
+            {error && <div className="text-sm text-destructive">{error}</div>}
+            <Button
+              type="submit"
+              className="w-full bg-primary hover:bg-primary/90 text-primary-foreground"
+            >
               Einloggen
             </Button>
           </form>

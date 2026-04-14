@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 
-export function middleware(request: NextRequest) {
+export function proxy(request: NextRequest) {
   // Wenn der Pfad /_next oder /favicon.ico ist, ignorieren wir ihn
   if (request.nextUrl.pathname.startsWith("/_next") || request.nextUrl.pathname.startsWith("/favicon.ico")) {
     return NextResponse.next();
@@ -18,8 +18,11 @@ export function middleware(request: NextRequest) {
     return NextResponse.next();
   }
 
-  // Falls nicht authentifiziert und nicht auf Login, redirect zu /login
+  // Falls nicht authentifiziert und nicht auf Login, redirect oder 401
   if (!isAuthenticated && process.env.APP_PASSWORD) {
+    if (request.nextUrl.pathname.startsWith("/api/")) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
     return NextResponse.redirect(new URL("/login", request.url));
   }
 
@@ -27,5 +30,5 @@ export function middleware(request: NextRequest) {
 }
 
 export const config = {
-  matcher: ["/((?!api|_next/static|_next/image|favicon.ico).*)"],
+  matcher: ["/((?!api/login|_next/static|_next/image|favicon.ico).*)"],
 };
