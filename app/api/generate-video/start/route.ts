@@ -169,6 +169,16 @@ export async function POST(req: Request) {
     );
   } catch (error: any) {
     console.error("Video start error:", error);
+    const status = error?.status || error?.response?.status;
+    if (status === 429) {
+      return new Response(
+        JSON.stringify({
+          error:
+            "Das Video-Kontingent für heute ist aufgebraucht. Bitte später erneut versuchen oder einen Screenshot machen und Rico melden.",
+        }),
+        { status: 429 }
+      );
+    }
     return new Response(
       JSON.stringify({
         error: "Fehler beim Starten der Video-Generierung",
