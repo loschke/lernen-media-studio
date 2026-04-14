@@ -16,7 +16,7 @@ const instrumentSerif = Instrument_Serif({
 });
 
 export const metadata: Metadata = {
-  title: "Bildwerkstatt | lernen.diy",
+  title: "Media Studio | lernen.diy",
   description: "KI-Bildgenerierung und Prompt-Workshop mit Gemini",
 };
 

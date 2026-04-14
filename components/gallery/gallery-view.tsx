@@ -41,8 +41,9 @@ export function GalleryView({
             className="group relative rounded-lg overflow-hidden border border-border bg-card aspect-square"
           >
             <img
-              src={`data:${img.mediaType};base64,${img.data}`}
+              src={img.url}
               alt={img.prompt}
+              loading="lazy"
               className="w-full h-full object-cover"
             />
             <div className="absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity bg-gradient-to-t from-black/70 via-transparent to-black/40 flex flex-col justify-between p-2.5">

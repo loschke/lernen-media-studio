@@ -31,11 +31,21 @@ export default function MediaStudio() {
     null
   );
 
-  const handleDownload = (img: GalleryImage) => {
-    const link = document.createElement("a");
-    link.href = `data:${img.mediaType};base64,${img.data}`;
-    link.download = `bildwerkstatt-${img.id.substring(0, 8)}.png`;
-    link.click();
+  const handleDownload = async (img: GalleryImage) => {
+    // Fetch via signed URL, then trigger browser download. Direct anchor
+    // download won't work cross-origin without a proper Content-Disposition.
+    try {
+      const res = await fetch(img.url);
+      const blob = await res.blob();
+      const objectUrl = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = objectUrl;
+      link.download = `bildwerkstatt-${img.id.substring(0, 8)}.png`;
+      link.click();
+      URL.revokeObjectURL(objectUrl);
+    } catch (err) {
+      console.warn("Download failed", err);
+    }
   };
 
   const handleLoadIntoEdit = (img: GalleryImage) => {
@@ -53,9 +63,14 @@ export default function MediaStudio() {
     <div className="flex flex-col h-screen w-full bg-background overflow-hidden">
       {/* Top Bar */}
       <header className="flex items-center justify-between px-6 md:px-10 h-14 shrink-0 border-b border-border/50">
-        <div className="flex items-center gap-1.5">
-          <span className="text-base font-black tracking-tight text-foreground">
-            Bildwerkstatt<span className="text-primary">.</span>
+        {/* Brand: lernen.diy logo + Media Studio */}
+        <div className="flex items-center gap-3">
+          <span className="font-serif text-xl text-foreground leading-none">
+            lernen<span className="italic text-primary">.diy</span>
+          </span>
+          <span className="h-5 w-px bg-border" />
+          <span className="text-sm text-muted-foreground tracking-wide">
+            Media Studio
           </span>
         </div>
 
@@ -78,15 +93,45 @@ export default function MediaStudio() {
           ))}
         </nav>
 
-        <div className="flex items-center gap-2 text-sm text-muted-foreground">
-          <span className="hidden sm:inline">Verbleibend:</span>
-          <span
-            className={`font-bold ${
-              generationsLeft < 5 ? "text-destructive" : "text-primary"
-            }`}
-          >
-            {generationsLeft}
-          </span>
+        <div className="flex items-center gap-4 text-sm">
+          <nav className="hidden md:flex items-center gap-5 text-base">
+            <a
+              href="https://lernen.diy"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="font-serif text-foreground/70 hover:text-foreground transition-colors leading-none"
+            >
+              lernen<span className="italic" style={{ color: "#0F766E" }}>.diy</span>
+            </a>
+            <a
+              href="https://unlearn.how"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="font-serif text-foreground/70 hover:text-foreground transition-colors leading-none"
+            >
+              <span className="italic">unlearn</span>
+              <span style={{ color: "#a855f7" }}>.how</span>
+            </a>
+            <a
+              href="https://loschke.ai"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-foreground/70 hover:text-foreground transition-colors leading-none font-medium"
+            >
+              loschke<span style={{ color: "#FC2D01" }}>.ai</span>
+            </a>
+          </nav>
+          <span className="h-5 w-px bg-border hidden md:inline-block" />
+          <div className="flex items-center gap-1.5 text-muted-foreground">
+            <span className="hidden sm:inline">Credits:</span>
+            <span
+              className={`font-bold ${
+                generationsLeft < 5 ? "text-destructive" : "text-primary"
+              }`}
+            >
+              {generationsLeft}
+            </span>
+          </div>
         </div>
       </header>
 

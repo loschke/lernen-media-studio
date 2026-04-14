@@ -17,7 +17,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { AspectRatioPicker } from "./aspect-ratio-picker";
-import { IMAGE_MODELS, type ImageModelId } from "@/lib/models";
+import { IMAGE_MODELS, type ImageModel, type ImageModelId } from "@/lib/models";
 
 interface GenerateSettingsProps {
   model: ImageModelId;
@@ -25,7 +25,7 @@ interface GenerateSettingsProps {
   onModelChange: (value: ImageModelId) => void;
   onAspectRatioChange: (value: string) => void;
   /** Optional: Nur diese Modelle in der Auswahl zeigen. Default = alle. */
-  availableModels?: readonly { id: ImageModelId; label: string }[];
+  availableModels?: readonly ImageModel[];
 }
 
 export function GenerateSettings({
@@ -35,17 +35,22 @@ export function GenerateSettings({
   onAspectRatioChange,
   availableModels = IMAGE_MODELS,
 }: GenerateSettingsProps) {
+  const currentModel = availableModels.find((m) => m.id === model);
+  const modelLabel = currentModel?.label ?? "Modell";
+
   return (
     <Popover>
       <PopoverTrigger asChild>
         <Button
           type="button"
           variant="ghost"
-          size="icon"
-          className="h-[52px] w-[52px] shrink-0 text-muted-foreground hover:text-foreground"
+          size="sm"
+          className="h-8 gap-1.5 text-muted-foreground hover:text-foreground"
           title="Einstellungen"
         >
-          <Settings className="h-5 w-5" />
+          <Settings className="h-3.5 w-3.5" />
+          <span className="text-foreground/80">{modelLabel}</span>
+          <span className="text-muted-foreground/70">· {aspectRatio}</span>
         </Button>
       </PopoverTrigger>
       <PopoverContent
@@ -68,10 +73,15 @@ export function GenerateSettings({
             <SelectContent>
               {availableModels.map((m) => (
                 <SelectItem key={m.id} value={m.id}>
-                  <div className="flex flex-col items-start">
-                    <span className="text-sm">{m.label}</span>
-                    <span className="text-xs text-muted-foreground">
-                      {m.id}
+                  <div className="flex items-center justify-between gap-3 w-full">
+                    <div className="flex flex-col items-start min-w-0">
+                      <span className="text-sm">{m.label}</span>
+                      <span className="text-xs text-muted-foreground truncate">
+                        {m.id}
+                      </span>
+                    </div>
+                    <span className="text-xs font-medium text-primary shrink-0 px-2 py-0.5 rounded-md bg-primary/10">
+                      {m.cost} {m.cost === 1 ? "Credit" : "Credits"}
                     </span>
                   </div>
                 </SelectItem>

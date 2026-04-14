@@ -39,11 +39,11 @@ export default function LoginPage() {
     <div className="flex h-screen w-full flex-col items-center justify-center gap-8 bg-background p-4">
       {/* Branding */}
       <div className="text-center space-y-2">
-        <p className="text-3xl font-black tracking-tight text-foreground">
-          lernen<span className="font-serif italic text-primary">.diy</span>
+        <p className="font-serif text-4xl text-foreground leading-none">
+          lernen<span className="italic text-primary">.diy</span>
         </p>
-        <p className="text-lg text-muted-foreground font-serif italic">
-          Bildwerkstatt
+        <p className="text-lg text-muted-foreground tracking-wide">
+          Media Studio
         </p>
         <div className="h-px w-16 bg-primary/40 mx-auto mt-4" />
       </div>

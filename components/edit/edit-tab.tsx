@@ -21,6 +21,7 @@ import {
   ALLOWED_EDIT_MODEL_IDS,
   DEFAULT_EDIT_MODEL,
   EDIT_CAPABLE_MODELS,
+  getModelCost,
 } from "@/lib/models";
 import type { GalleryImage } from "@/hooks/useGallery";
 
@@ -29,18 +30,30 @@ const MAX_IMAGES = 3;
 interface EditTabProps {
   galleryImages: GalleryImage[];
   generationsLeft: number;
-  addImage: (image: Omit<GalleryImage, "id" | "timestamp">) => void;
+  addImage: (image: GalleryImage) => void;
   decrementCount: (amount?: number) => void;
   pendingImage: GalleryImage | null;
   onConsumePending: () => void;
 }
 
-const EDIT_COST = 2;
+/**
+ * A reference image selected for editing — either a gallery item (server-side
+ * R2 object, sent by id) or an upload (client-side base64, sent inline).
+ */
+type SelectedImage =
+  | { source: "gallery"; id: string; url: string; mediaType: string }
+  | { source: "upload"; data: string; mediaType: string };
 
-interface SelectedImage {
-  data: string;
-  mediaType: string;
-  source: "gallery" | "upload";
+function imageDisplaySrc(img: SelectedImage): string {
+  if (img.source === "gallery") return img.url;
+  return `data:${img.mediaType};base64,${img.data}`;
+}
+
+function isSameSelected(a: SelectedImage, b: SelectedImage): boolean {
+  if (a.source !== b.source) return false;
+  if (a.source === "gallery" && b.source === "gallery") return a.id === b.id;
+  if (a.source === "upload" && b.source === "upload") return a.data === b.data;
+  return false;
 }
 
 export function EditTab({
@@ -55,13 +68,9 @@ export function EditTab({
     useGenerateSettings();
   const [selectedImages, setSelectedImages] = useState<SelectedImage[]>([]);
   const [prompt, setPrompt] = useState("");
-  const [lastPrompt, setLastPrompt] = useState("");
   const [isEditing, setIsEditing] = useState(false);
   const [error, setError] = useState("");
-  const [result, setResult] = useState<{
-    data: string;
-    mediaType: string;
-  } | null>(null);
+  const [result, setResult] = useState<GalleryImage | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Edit unterstützt nur die 3.x Modelle. Wenn das gespeicherte Modell nicht
@@ -82,37 +91,32 @@ export function EditTab({
     if (!pendingImage) return;
     setSelectedImages((prev) => {
       if (prev.length >= MAX_IMAGES) return prev;
-      const exists = prev.some(
-        (s) => s.data === pendingImage.data && s.source === "gallery"
-      );
-      if (exists) return prev;
-      return [
-        ...prev,
-        {
-          data: pendingImage.data,
-          mediaType: pendingImage.mediaType,
-          source: "gallery",
-        },
-      ];
+      const next: SelectedImage = {
+        source: "gallery",
+        id: pendingImage.id,
+        url: pendingImage.url,
+        mediaType: pendingImage.mediaType,
+      };
+      if (prev.some((s) => isSameSelected(s, next))) return prev;
+      return [...prev, next];
     });
     onConsumePending();
   }, [pendingImage, onConsumePending]);
 
   const handleSelectGallery = (img: GalleryImage) => {
-    const exists = selectedImages.find(
-      (s) => s.data === img.data && s.source === "gallery"
-    );
+    const candidate: SelectedImage = {
+      source: "gallery",
+      id: img.id,
+      url: img.url,
+      mediaType: img.mediaType,
+    };
+    const exists = selectedImages.some((s) => isSameSelected(s, candidate));
     if (exists) {
-      setSelectedImages(
-        selectedImages.filter(
-          (s) => !(s.data === img.data && s.source === "gallery")
-        )
+      setSelectedImages((prev) =>
+        prev.filter((s) => !isSameSelected(s, candidate))
       );
     } else if (selectedImages.length < MAX_IMAGES) {
-      setSelectedImages([
-        ...selectedImages,
-        { data: img.data, mediaType: img.mediaType, source: "gallery" },
-      ]);
+      setSelectedImages((prev) => [...prev, candidate]);
     }
   };
 
@@ -126,10 +130,12 @@ export function EditTab({
       reader.onload = () => {
         const dataUrl = reader.result as string;
         const base64 = dataUrl.split(",")[1];
-        const mediaType = file.type;
         setSelectedImages((prev) => {
           if (prev.length >= MAX_IMAGES) return prev;
-          return [...prev, { data: base64, mediaType, source: "upload" }];
+          return [
+            ...prev,
+            { source: "upload", data: base64, mediaType: file.type },
+          ];
         });
       };
       reader.readAsDataURL(file);
@@ -154,7 +160,7 @@ export function EditTab({
           if (prev.length >= MAX_IMAGES) return prev;
           return [
             ...prev,
-            { data: base64, mediaType: file.type, source: "upload" },
+            { source: "upload", data: base64, mediaType: file.type },
           ];
         });
       };
@@ -171,17 +177,18 @@ export function EditTab({
     setIsEditing(true);
     setError("");
     setResult(null);
-    setLastPrompt(prompt);
 
     try {
+      const imageRefs = selectedImages.map((img) =>
+        img.source === "gallery"
+          ? { source: "gallery", id: img.id }
+          : { source: "upload", data: img.data, mediaType: img.mediaType }
+      );
+
       const res = await fetch("/api/edit", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          prompt,
-          images: selectedImages.map((img) => img.data),
-          model: editModel,
-        }),
+        body: JSON.stringify({ prompt, imageRefs, model: editModel }),
       });
 
       const data = await res.json();
@@ -191,11 +198,11 @@ export function EditTab({
       }
 
       if (data.images && data.images.length > 0) {
-        setResult({
-          data: data.images[0].data,
-          mediaType: data.images[0].mediaType,
-        });
-        decrementCount(EDIT_COST);
+        const resultImage: GalleryImage = data.images[0];
+        setResult(resultImage);
+        // Image is already in R2; mirror in local gallery state.
+        addImage(resultImage);
+        decrementCount(getModelCost(editModel));
       }
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : "Unbekannter Fehler");
@@ -204,35 +211,27 @@ export function EditTab({
     }
   };
 
-  // "In Galerie speichern" — sichert das Ergebnis und setzt den Tab zurück.
+  // "In Galerie speichern" — Bild ist bereits in R2; nur State zurücksetzen.
   const handleSaveResult = () => {
-    if (!result) return;
-    addImage({
-      data: result.data,
-      mediaType: result.mediaType,
-      prompt: `[Bearbeitet] ${lastPrompt}`,
-    });
     setResult(null);
     setPrompt("");
     setSelectedImages([]);
-    setLastPrompt("");
   };
 
-  // "Weiterbearbeiten" — sichert automatisch in die Galerie, macht das Ergebnis
-  // zum neuen einzigen Referenzbild und leert Prompt + alte Referenzen.
+  // "Weiterbearbeiten" — Ergebnis (bereits in R2) wird zur einzigen neuen
+  // Referenz, Prompt + alte Refs werden geleert.
   const handleContinueEdit = () => {
     if (!result) return;
-    addImage({
-      data: result.data,
-      mediaType: result.mediaType,
-      prompt: `[Bearbeitet] ${lastPrompt}`,
-    });
     setSelectedImages([
-      { data: result.data, mediaType: result.mediaType, source: "upload" },
+      {
+        source: "gallery",
+        id: result.id,
+        url: result.url,
+        mediaType: result.mediaType,
+      },
     ]);
     setResult(null);
     setPrompt("");
-    setLastPrompt("");
   };
 
   const openFilePicker = () => fileInputRef.current?.click();
@@ -241,6 +240,7 @@ export function EditTab({
 
   const hasRefs = selectedImages.length > 0;
   const primaryRef = selectedImages[0];
+  const editCost = getModelCost(editModel);
 
   return (
     <div className="flex flex-col h-full">
@@ -254,7 +254,7 @@ export function EditTab({
           <div className="flex flex-col items-center gap-4 animate-in fade-in duration-500 w-full h-full min-h-0">
             <div className="flex-1 min-h-0 w-full">
               <FittedImage
-                src={`data:${result.mediaType};base64,${result.data}`}
+                src={result.url}
                 alt="Bearbeitetes Bild"
                 className="rounded-xl overflow-hidden border border-border bg-muted/30"
               />
@@ -269,20 +269,23 @@ export function EditTab({
                     : "Ausgangsbilder"}
                 </span>
                 <div className="flex gap-1.5">
-                  {selectedImages.map((img, i) => (
-                    <ImageLightbox
-                      key={i}
-                      src={`data:${img.mediaType};base64,${img.data}`}
-                      alt={`Ausgangsbild ${i + 1}`}
-                      triggerClassName="h-16 w-16 rounded-md overflow-hidden border border-border bg-muted/30"
-                    >
-                      <img
-                        src={`data:${img.mediaType};base64,${img.data}`}
-                        alt=""
-                        className="w-full h-full object-cover"
-                      />
-                    </ImageLightbox>
-                  ))}
+                  {selectedImages.map((img, i) => {
+                    const src = imageDisplaySrc(img);
+                    return (
+                      <ImageLightbox
+                        key={i}
+                        src={src}
+                        alt={`Ausgangsbild ${i + 1}`}
+                        triggerClassName="h-16 w-16 rounded-md overflow-hidden border border-border bg-muted/30"
+                      >
+                        <img
+                          src={src}
+                          alt=""
+                          className="w-full h-full object-cover"
+                        />
+                      </ImageLightbox>
+                    );
+                  })}
                 </div>
               </div>
             )}
@@ -294,7 +297,7 @@ export function EditTab({
                 className="shrink-0"
               >
                 <Save className="h-4 w-4 mr-2" />
-                In Galerie speichern
+                Fertig
               </Button>
               <Button
                 onClick={handleContinueEdit}
@@ -315,7 +318,7 @@ export function EditTab({
         ) : hasRefs ? (
           /* Primary reference shown large when refs exist */
           <FittedImage
-            src={`data:${primaryRef.mediaType};base64,${primaryRef.data}`}
+            src={imageDisplaySrc(primaryRef)}
             alt="Referenzbild"
             className="animate-in fade-in duration-300 rounded-xl overflow-hidden border border-border bg-muted/30"
           >
@@ -326,9 +329,7 @@ export function EditTab({
             )}
           </FittedImage>
         ) : (
-          <label
-            className="flex flex-col items-center justify-center w-full max-w-2xl aspect-[4/3] border-2 border-dashed border-border rounded-xl cursor-pointer hover:border-primary/40 transition-colors"
-          >
+          <label className="flex flex-col items-center justify-center w-full max-w-2xl aspect-[4/3] border-2 border-dashed border-border rounded-xl cursor-pointer hover:border-primary/40 transition-colors">
             <div className="flex flex-col items-center gap-3 text-muted-foreground text-center px-6">
               <Upload className="h-12 w-12 opacity-40" />
               <p className="text-base font-medium text-foreground/70">
@@ -378,13 +379,15 @@ export function EditTab({
             <div className="flex gap-2 overflow-x-auto no-scrollbar pb-1">
               {galleryImages.map((img) => {
                 const isSelected = selectedImages.some(
-                  (s) => s.data === img.data && s.source === "gallery"
+                  (s) => s.source === "gallery" && s.id === img.id
                 );
                 return (
                   <button
                     key={img.id}
                     onClick={() => handleSelectGallery(img)}
-                    disabled={!isSelected && selectedImages.length >= MAX_IMAGES}
+                    disabled={
+                      !isSelected && selectedImages.length >= MAX_IMAGES
+                    }
                     className={`relative shrink-0 rounded-md overflow-hidden border-2 h-14 w-14 transition-all disabled:opacity-40 disabled:cursor-not-allowed ${
                       isSelected
                         ? "border-primary"
@@ -392,8 +395,9 @@ export function EditTab({
                     }`}
                   >
                     <img
-                      src={`data:${img.mediaType};base64,${img.data}`}
+                      src={img.url}
                       alt={img.prompt}
+                      loading="lazy"
                       className="w-full h-full object-cover"
                     />
                   </button>
@@ -404,18 +408,18 @@ export function EditTab({
         </div>
       )}
 
-      {/* Bottom bar — ALWAYS visible: thumbnails + prompt */}
-      <div className="shrink-0 border-t border-border/50 bg-card/50 px-4 md:px-8 py-4">
-        <div className="max-w-3xl mx-auto space-y-3">
-          {/* Row 1: Selected thumbnails + Add button */}
-          <div className="flex items-center gap-2 flex-wrap min-h-[68px]">
+      {/* Prompt-Card — Refs row, textarea, action bar */}
+      <div className="shrink-0 px-4 md:px-8 py-4">
+        <div className="max-w-3xl mx-auto rounded-2xl border border-border bg-card overflow-hidden focus-within:border-primary/50 transition-colors">
+          {/* Row 1: Reference thumbnails + Add button */}
+          <div className="flex items-center gap-2 flex-wrap px-3 py-3 border-b border-border/40">
             {selectedImages.map((img, i) => (
               <div
                 key={i}
-                className="relative h-16 w-16 rounded-md overflow-hidden border border-border"
+                className="relative h-14 w-14 rounded-md overflow-hidden border border-border"
               >
                 <img
-                  src={`data:${img.mediaType};base64,${img.data}`}
+                  src={imageDisplaySrc(img)}
                   alt=""
                   className="w-full h-full object-cover"
                 />
@@ -432,14 +436,14 @@ export function EditTab({
               <button
                 type="button"
                 onClick={openFilePicker}
-                className="h-16 w-16 rounded-md border-2 border-dashed border-border hover:border-primary/40 flex items-center justify-center text-muted-foreground hover:text-foreground transition-colors"
+                className="h-14 w-14 rounded-md border-2 border-dashed border-border hover:border-primary/40 flex items-center justify-center text-muted-foreground hover:text-foreground transition-colors"
                 title="Bild hinzufügen"
               >
-                <ImagePlus className="h-5 w-5" />
+                <ImagePlus className="h-4 w-4" />
               </button>
             )}
             {selectedImages.length === 0 && (
-              <p className="text-xs text-muted-foreground italic ml-2">
+              <p className="text-xs text-muted-foreground italic ml-1">
                 Wähle bis zu {MAX_IMAGES} Referenzbilder
               </p>
             )}
@@ -450,21 +454,23 @@ export function EditTab({
             )}
           </div>
 
-          {/* Row 2: Textarea + Settings + Edit button */}
-          <div className="flex items-end gap-2">
-            <Textarea
-              value={prompt}
-              onChange={(e) => setPrompt(e.target.value)}
-              placeholder="Was soll geändert werden?"
-              className="min-h-[96px] max-h-[240px] resize-none flex-1 thin-scrollbar"
-              rows={3}
-              onKeyDown={(e) => {
-                if (e.key === "Enter" && !e.shiftKey) {
-                  e.preventDefault();
-                  handleEdit();
-                }
-              }}
-            />
+          {/* Row 2: Textarea — full width */}
+          <Textarea
+            value={prompt}
+            onChange={(e) => setPrompt(e.target.value)}
+            placeholder="Was soll geändert werden?"
+            className="min-h-[96px] max-h-[240px] resize-none thin-scrollbar border-0 bg-transparent shadow-none focus-visible:ring-0 focus-visible:ring-offset-0 px-4 py-3"
+            rows={3}
+            onKeyDown={(e) => {
+              if (e.key === "Enter" && !e.shiftKey) {
+                e.preventDefault();
+                handleEdit();
+              }
+            }}
+          />
+
+          {/* Row 3: Action bar */}
+          <div className="flex items-center justify-between gap-2 px-2 py-2 border-t border-border/40">
             <GenerateSettings
               model={editModel}
               aspectRatio={aspectRatio}
@@ -478,17 +484,23 @@ export function EditTab({
                 !prompt.trim() ||
                 selectedImages.length === 0 ||
                 isEditing ||
-                generationsLeft < EDIT_COST
+                generationsLeft < editCost
               }
-              className="h-[52px] px-5 bg-primary hover:bg-primary/90 text-primary-foreground font-medium shrink-0"
-              title={`Kostet ${EDIT_COST} Credits`}
+              size="sm"
+              className="h-8 px-3 bg-primary hover:bg-primary/90 text-primary-foreground font-medium"
+              title={`Kostet ${editCost} ${
+                editCost === 1 ? "Credit" : "Credits"
+              }`}
             >
               {isEditing ? (
-                <Loader2 className="h-4 w-4 animate-spin" />
+                <Loader2 className="h-3.5 w-3.5 animate-spin" />
               ) : (
                 <>
-                  <Edit3 className="h-4 w-4 mr-2" />
+                  <Edit3 className="h-3.5 w-3.5 mr-1.5" />
                   Bearbeiten
+                  <span className="ml-1.5 text-[10px] opacity-70">
+                    · {editCost}
+                  </span>
                 </>
               )}
             </Button>

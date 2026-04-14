@@ -1,54 +1,23 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback } from "react";
 
 export interface GalleryImage {
   id: string;
-  data: string; // base64
-  mediaType: string;
+  url: string;
   prompt: string;
   timestamp: number;
+  mediaType: string;
 }
 
-const GALLERY_KEY = 'media_studio_gallery';
-const COUNT_KEY = 'media_studio_count';
-
-/**
- * Persist gallery to localStorage. If quota is exceeded, drop the oldest
- * entries until it fits. Images are stored newest-first, so we pop from the
- * tail. Returns the (potentially trimmed) list that actually got saved.
- */
-function persistGallery(images: GalleryImage[]): GalleryImage[] {
-  let trimmed = images;
-  while (trimmed.length > 0) {
-    try {
-      localStorage.setItem(GALLERY_KEY, JSON.stringify(trimmed));
-      return trimmed;
-    } catch (err) {
-      if (err instanceof DOMException && trimmed.length > 1) {
-        trimmed = trimmed.slice(0, -1);
-        continue;
-      }
-      console.warn('Gallery persist failed, clearing storage', err);
-      try {
-        localStorage.removeItem(GALLERY_KEY);
-      } catch {}
-      return [];
-    }
-  }
-  return [];
-}
+const COUNT_KEY = "media_studio_count";
 
 export function useGallery() {
   const [images, setImages] = useState<GalleryImage[]>([]);
   const [generationsLeft, setGenerationsLeft] = useState<number>(100);
   const [isLoaded, setIsLoaded] = useState(false);
+  const [isFetching, setIsFetching] = useState(false);
 
+  // Initial load: credits from localStorage, gallery from API.
   useEffect(() => {
-    const stored = localStorage.getItem(GALLERY_KEY);
-    if (stored) {
-      try {
-        setImages(JSON.parse(stored));
-      } catch {}
-    }
     const count = localStorage.getItem(COUNT_KEY);
     if (count) {
       setGenerationsLeft(parseInt(count, 10));
@@ -57,39 +26,54 @@ export function useGallery() {
       setGenerationsLeft(initialCount);
       localStorage.setItem(COUNT_KEY, initialCount.toString());
     }
-    setIsLoaded(true);
+
+    fetchGallery().finally(() => setIsLoaded(true));
   }, []);
 
-  const addImage = useCallback(
-    (image: Omit<GalleryImage, 'id' | 'timestamp'>) => {
-      const newImage: GalleryImage = {
-        ...image,
-        id: crypto.randomUUID(),
-        timestamp: Date.now(),
-      };
-      setImages((prev) => {
-        const updated = [newImage, ...prev];
-        const persisted = persistGallery(updated);
-        return persisted.length === updated.length ? updated : persisted;
-      });
-    },
-    []
-  );
-
-  const removeImage = useCallback((id: string) => {
-    setImages((prev) => {
-      const updated = prev.filter((i) => i.id !== id);
-      try {
-        localStorage.setItem(GALLERY_KEY, JSON.stringify(updated));
-      } catch {}
-      return updated;
-    });
+  const fetchGallery = useCallback(async () => {
+    setIsFetching(true);
+    try {
+      const res = await fetch("/api/gallery/list", { cache: "no-store" });
+      if (res.ok) {
+        const data = (await res.json()) as { images: GalleryImage[] };
+        setImages(data.images || []);
+      }
+    } catch (err) {
+      console.warn("Gallery fetch failed", err);
+    } finally {
+      setIsFetching(false);
+    }
   }, []);
 
   /**
-   * Decrement the credit counter by `amount` (default 1). Credits are
-   * charged per API call: generate = 1, edit = 2.
+   * Optimistically prepend a freshly-uploaded image (returned from
+   * /api/generate or /api/edit) to the local state. The image is already
+   * persisted in R2 by the API.
    */
+  const addImage = useCallback((image: GalleryImage) => {
+    setImages((prev) => {
+      // Avoid duplicates if a refetch already added it.
+      if (prev.some((p) => p.id === image.id)) return prev;
+      return [image, ...prev];
+    });
+  }, []);
+
+  const removeImage = useCallback(async (id: string) => {
+    // Optimistic UI: remove first, then call server.
+    setImages((prev) => prev.filter((i) => i.id !== id));
+    try {
+      await fetch("/api/gallery/delete", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id }),
+      });
+    } catch (err) {
+      console.warn("Gallery delete failed", err);
+      // Refetch to restore truth on error.
+      fetchGallery();
+    }
+  }, [fetchGallery]);
+
   const decrementCount = useCallback((amount: number = 1) => {
     setGenerationsLeft((p) => {
       const n = Math.max(0, p - amount);
@@ -105,7 +89,9 @@ export function useGallery() {
     addImage,
     removeImage,
     decrementCount,
+    refetchGallery: fetchGallery,
     generationsLeft,
     isLoaded,
+    isFetching,
   };
 }

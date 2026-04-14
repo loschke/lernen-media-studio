@@ -1,12 +1,21 @@
 export const IMAGE_MODELS = [
-  { id: "gemini-2.5-flash-image", label: "Standardmodell" },
-  { id: "gemini-3.1-flash-image-preview", label: "Schnell & Kreativ" },
-  { id: "gemini-3-pro-image-preview", label: "Höchste Qualität" },
+  { id: "gemini-2.5-flash-image", label: "Standardmodell", cost: 1 },
+  { id: "gemini-3.1-flash-image-preview", label: "Schnell & Kreativ", cost: 2 },
+  { id: "gemini-3-pro-image-preview", label: "Höchste Qualität", cost: 5 },
 ] as const;
 
 export type ImageModelId = (typeof IMAGE_MODELS)[number]["id"];
+export type ImageModel = (typeof IMAGE_MODELS)[number];
 
 export const DEFAULT_MODEL: ImageModelId = "gemini-2.5-flash-image";
+
+/**
+ * Credit cost for a single API call with the given model. Used for both
+ * generate and edit. Falls back to 1 for unknown models.
+ */
+export function getModelCost(modelId: string): number {
+  return IMAGE_MODELS.find((m) => m.id === modelId)?.cost ?? 1;
+}
 
 export const ALLOWED_MODEL_IDS: ReadonlySet<string> = new Set(
   IMAGE_MODELS.map((m) => m.id)

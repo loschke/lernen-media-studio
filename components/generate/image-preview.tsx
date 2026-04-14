@@ -18,7 +18,7 @@ export function ImagePreview({
 }: ImagePreviewProps) {
   return (
     <FittedImage
-      src={`data:${image.mediaType};base64,${image.data}`}
+      src={image.url}
       alt={image.prompt}
       className="animate-in fade-in zoom-in duration-500 rounded-xl overflow-hidden border border-border bg-muted/30"
     >

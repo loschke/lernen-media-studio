@@ -8,11 +8,11 @@ import {
   type ImageModelId,
   type ImageSize,
 } from '@/lib/models';
+import { getSessionId } from '@/lib/session';
+import { uploadImage, getImageUrl, r2Configured } from '@/lib/r2';
 
 export const maxDuration = 60;
 
-// Bildgröße wird zentral über die Env-Variable gesteuert (Default: 1K).
-// Nicht vom Client steuerbar.
 function resolveImageSize(): ImageSize {
   const envSize = process.env.DEFAULT_IMAGE_SIZE;
   if (envSize && ALLOWED_IMAGE_SIZES.has(envSize)) {
@@ -23,6 +23,18 @@ function resolveImageSize(): ImageSize {
 
 export async function POST(req: Request) {
   try {
+    if (!r2Configured) {
+      return new Response(
+        JSON.stringify({ error: 'Storage nicht konfiguriert (R2 Env-Vars fehlen).' }),
+        { status: 500 }
+      );
+    }
+
+    const sessionId = await getSessionId();
+    if (!sessionId) {
+      return new Response(JSON.stringify({ error: 'Keine Session — bitte neu anmelden.' }), { status: 401 });
+    }
+
     const { prompt, aspectRatio = '1:1', model } = await req.json();
 
     if (!prompt) {
@@ -44,23 +56,30 @@ export async function POST(req: Request) {
       prompt,
     });
 
-    const images = result.files?.filter(f => f.mediaType?.startsWith('image/')) || [];
+    const generated = result.files?.filter((f) => f.mediaType?.startsWith('image/')) || [];
 
-    if (images.length === 0) {
+    if (generated.length === 0) {
       return new Response(
         JSON.stringify({ error: 'Kein Bild generiert. Eventuell hat ein Sicherheitsfilter gegriffen.' }),
         { status: 500 }
       );
     }
 
+    // Upload each generated image to R2 and collect metadata for the client.
+    const uploaded = await Promise.all(
+      generated.map(async (img) => {
+        const id = crypto.randomUUID();
+        const buffer = Buffer.from(img.uint8Array);
+        const mediaType = img.mediaType || 'image/png';
+        const timestamp = Date.now();
+        await uploadImage(sessionId, id, buffer, { prompt, timestamp, mediaType });
+        const url = await getImageUrl(sessionId, id);
+        return { id, url, mediaType, prompt, timestamp };
+      })
+    );
+
     return new Response(
-      JSON.stringify({
-        images: images.map(img => ({
-          data: Buffer.from(img.uint8Array).toString('base64'),
-          mediaType: img.mediaType,
-        })),
-        text: result.text,
-      }),
+      JSON.stringify({ images: uploaded, text: result.text }),
       { status: 200, headers: { 'Content-Type': 'application/json' } }
     );
   } catch (error: any) {

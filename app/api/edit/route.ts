@@ -8,11 +8,16 @@ import {
   type EditCapableModelId,
   type ImageSize,
 } from '@/lib/models';
+import { getSessionId } from '@/lib/session';
+import {
+  uploadImage,
+  getImageUrl,
+  fetchImageBuffer,
+  r2Configured,
+} from '@/lib/r2';
 
 export const maxDuration = 60;
 
-// Bildgröße wird zentral über die Env-Variable gesteuert (Default: 1K).
-// Nicht vom Client steuerbar.
 function resolveImageSize(): ImageSize {
   const envSize = process.env.DEFAULT_IMAGE_SIZE;
   if (envSize && ALLOWED_IMAGE_SIZES.has(envSize)) {
@@ -21,12 +26,42 @@ function resolveImageSize(): ImageSize {
   return DEFAULT_IMAGE_SIZE;
 }
 
+interface ImageRefGallery {
+  source: 'gallery';
+  id: string;
+}
+interface ImageRefUpload {
+  source: 'upload';
+  data: string; // base64 (with or without data: prefix)
+  mediaType?: string;
+}
+type ImageRef = ImageRefGallery | ImageRefUpload;
+
 export async function POST(req: Request) {
   try {
-    const { prompt, images, model } = await req.json();
+    if (!r2Configured) {
+      return new Response(
+        JSON.stringify({ error: 'Storage nicht konfiguriert (R2 Env-Vars fehlen).' }),
+        { status: 500 }
+      );
+    }
 
-    if (!prompt || !images || !Array.isArray(images) || images.length === 0) {
-      return new Response(JSON.stringify({ error: 'Prompt und mindestens ein Bild sind erforderlich.' }), { status: 400 });
+    const sessionId = await getSessionId();
+    if (!sessionId) {
+      return new Response(JSON.stringify({ error: 'Keine Session — bitte neu anmelden.' }), { status: 401 });
+    }
+
+    const { prompt, imageRefs, model } = (await req.json()) as {
+      prompt: string;
+      imageRefs: ImageRef[];
+      model?: string;
+    };
+
+    if (!prompt || !Array.isArray(imageRefs) || imageRefs.length === 0) {
+      return new Response(
+        JSON.stringify({ error: 'Prompt und mindestens ein Bild sind erforderlich.' }),
+        { status: 400 }
+      );
     }
 
     const chosenModel: EditCapableModelId =
@@ -35,6 +70,18 @@ export async function POST(req: Request) {
         : DEFAULT_EDIT_MODEL;
 
     const imageSize = resolveImageSize();
+
+    // Resolve each ref into a Buffer the model can consume.
+    const buffers = await Promise.all(
+      imageRefs.map(async (ref) => {
+        if (ref.source === 'gallery') {
+          const { buffer } = await fetchImageBuffer(sessionId, ref.id);
+          return buffer;
+        }
+        const cleaned = ref.data.replace(/^data:image\/\w+;base64,/, '');
+        return Buffer.from(cleaned, 'base64');
+      })
+    );
 
     const result = await generateText({
       model: google(chosenModel),
@@ -45,35 +92,46 @@ export async function POST(req: Request) {
         {
           role: 'user',
           content: [
-            ...images.map((imgData: string) => ({
-              type: 'image' as const,
-              // Wir entfernen ein evt. vorhandenes "data:image/xxx;base64," Prefix, falls vom Client gesendet
-              image: Buffer.from(imgData.replace(/^data:image\/\w+;base64,/, ''), 'base64'),
-            })),
+            ...buffers.map((image) => ({ type: 'image' as const, image })),
             { type: 'text' as const, text: prompt },
           ],
         },
       ],
     });
 
-    const outputImages = result.files?.filter((f) => f.mediaType?.startsWith('image/')) || [];
+    const generated = result.files?.filter((f) => f.mediaType?.startsWith('image/')) || [];
 
-    if (outputImages.length === 0) {
+    if (generated.length === 0) {
       return new Response(JSON.stringify({ error: 'Kein bearbeitetes Bild generiert.' }), { status: 500 });
     }
 
+    // Upload result(s) to R2 with [Bearbeitet]-prefix in prompt for clarity.
+    const uploaded = await Promise.all(
+      generated.map(async (img) => {
+        const id = crypto.randomUUID();
+        const buffer = Buffer.from(img.uint8Array);
+        const mediaType = img.mediaType || 'image/png';
+        const timestamp = Date.now();
+        const taggedPrompt = `[Bearbeitet] ${prompt}`;
+        await uploadImage(sessionId, id, buffer, {
+          prompt: taggedPrompt,
+          timestamp,
+          mediaType,
+        });
+        const url = await getImageUrl(sessionId, id);
+        return { id, url, mediaType, prompt: taggedPrompt, timestamp };
+      })
+    );
+
     return new Response(
-      JSON.stringify({
-        images: outputImages.map((img) => ({
-          data: Buffer.from(img.uint8Array).toString('base64'),
-          mediaType: img.mediaType,
-        })),
-        text: result.text,
-      }),
+      JSON.stringify({ images: uploaded, text: result.text }),
       { status: 200, headers: { 'Content-Type': 'application/json' } }
     );
   } catch (error: any) {
     console.error('Edit API Error:', error);
-    return new Response(JSON.stringify({ error: 'Fehler bei der Bildbearbeitung', details: error.message || 'Unknown error' }), { status: 500 });
+    return new Response(
+      JSON.stringify({ error: 'Fehler bei der Bildbearbeitung', details: error.message || 'Unknown error' }),
+      { status: 500 }
+    );
   }
 }
