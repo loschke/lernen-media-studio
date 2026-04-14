@@ -12,22 +12,40 @@ const COUNT_KEY = "media_studio_count";
 
 export function useGallery() {
   const [images, setImages] = useState<GalleryImage[]>([]);
-  const [generationsLeft, setGenerationsLeft] = useState<number>(100);
+  const [generationsLeft, setGenerationsLeft] = useState<number>(0);
   const [isLoaded, setIsLoaded] = useState(false);
   const [isFetching, setIsFetching] = useState(false);
 
-  // Initial load: credits from localStorage, gallery from API.
+  // Initial load: credits from localStorage, gallery from API. If no local
+  // count yet, fetch the server-configured default from /api/config
+  // (reads DEFAULT_CREDITS env).
   useEffect(() => {
     const count = localStorage.getItem(COUNT_KEY);
     if (count) {
       setGenerationsLeft(parseInt(count, 10));
-    } else {
-      const initialCount = 100;
-      setGenerationsLeft(initialCount);
-      localStorage.setItem(COUNT_KEY, initialCount.toString());
+      fetchGallery().finally(() => setIsLoaded(true));
+      return;
     }
 
-    fetchGallery().finally(() => setIsLoaded(true));
+    (async () => {
+      let initialCount = 100;
+      try {
+        const res = await fetch("/api/config", { cache: "no-store" });
+        if (res.ok) {
+          const data = (await res.json()) as { defaultCredits?: number };
+          if (typeof data.defaultCredits === "number" && data.defaultCredits > 0) {
+            initialCount = data.defaultCredits;
+          }
+        }
+      } catch {
+        // Fall back to 100 if the config endpoint is unreachable.
+      }
+      setGenerationsLeft(initialCount);
+      try {
+        localStorage.setItem(COUNT_KEY, initialCount.toString());
+      } catch {}
+      fetchGallery().finally(() => setIsLoaded(true));
+    })();
   }, []);
 
   const fetchGallery = useCallback(async () => {
