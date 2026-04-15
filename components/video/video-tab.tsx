@@ -217,7 +217,6 @@ export function VideoTab({
 
   const handleNew = () => {
     setResult(null);
-    setPrompt("");
     setStartFrame(null);
     setEndFrame(null);
     setError("");
@@ -405,19 +404,32 @@ export function VideoTab({
             </div>
 
             {/* Prompt */}
-            <Textarea
-              value={prompt}
-              onChange={(e) => setPrompt(e.target.value)}
-              placeholder="Beschreibe das Video, das du generieren möchtest..."
-              className="min-h-[96px] max-h-[240px] resize-none thin-scrollbar border-0 bg-transparent shadow-none focus-visible:ring-0 focus-visible:ring-offset-0 px-4 py-3"
-              rows={3}
-              onKeyDown={(e) => {
-                if (e.key === "Enter" && !e.shiftKey) {
-                  e.preventDefault();
-                  handleGenerate();
-                }
-              }}
-            />
+            <div className="relative">
+              <Textarea
+                value={prompt}
+                onChange={(e) => setPrompt(e.target.value)}
+                placeholder="Beschreibe das Video, das du generieren möchtest..."
+                className="min-h-[96px] max-h-[240px] resize-none thin-scrollbar border-0 bg-transparent shadow-none focus-visible:ring-0 focus-visible:ring-offset-0 px-4 py-3 pr-10"
+                rows={3}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" && !e.shiftKey) {
+                    e.preventDefault();
+                    handleGenerate();
+                  }
+                }}
+              />
+              {prompt && !isGenerating && (
+                <button
+                  type="button"
+                  onClick={() => setPrompt("")}
+                  className="absolute top-2 right-2 h-6 w-6 rounded-md flex items-center justify-center text-muted-foreground hover:text-foreground hover:bg-muted/60 transition-colors"
+                  title="Prompt löschen"
+                  aria-label="Prompt löschen"
+                >
+                  <X className="h-3.5 w-3.5" />
+                </button>
+              )}
+            </div>
 
             {/* Action bar */}
             <div className="flex items-center justify-between gap-2 px-2 py-2 border-t border-border/40">

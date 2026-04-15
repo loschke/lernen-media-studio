@@ -1,7 +1,16 @@
 "use client";
 
 import { useState } from "react";
-import { ImageIcon, Download, Trash2, Edit3, Film, Play } from "lucide-react";
+import {
+  ImageIcon,
+  Download,
+  Trash2,
+  Edit3,
+  Film,
+  Play,
+  Copy,
+  Check,
+} from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
@@ -25,6 +34,17 @@ export function GalleryView({
   onLoadIntoVideo,
 }: GalleryViewProps) {
   const [filter, setFilter] = useState<Filter>("all");
+  const [copiedId, setCopiedId] = useState<string | null>(null);
+
+  const handleCopyPrompt = async (item: GalleryImage) => {
+    try {
+      await navigator.clipboard.writeText(item.prompt);
+      setCopiedId(item.id);
+      setTimeout(() => setCopiedId((id) => (id === item.id ? null : id)), 1500);
+    } catch {
+      // Clipboard API can fail in insecure contexts — silent no-op.
+    }
+  };
 
   const imageCount = images.filter((i) => i.mediaType.startsWith("image/")).length;
   const videoCount = images.filter((i) => i.mediaType.startsWith("video/")).length;
@@ -159,6 +179,18 @@ export function GalleryView({
                         </Button>
                       </>
                     )}
+                    <Button
+                      size="icon-xs"
+                      variant="secondary"
+                      onClick={() => handleCopyPrompt(item)}
+                      title="Prompt kopieren"
+                    >
+                      {copiedId === item.id ? (
+                        <Check className="h-3.5 w-3.5 text-primary" />
+                      ) : (
+                        <Copy className="h-3.5 w-3.5" />
+                      )}
+                    </Button>
                     <Button
                       size="icon-xs"
                       variant="secondary"
