@@ -246,7 +246,7 @@ export function EditTab({
     <div className="flex flex-col h-full">
       {/* Canvas area */}
       <div
-        className="flex-1 flex items-center justify-center overflow-hidden p-6 min-h-0"
+        className="flex-1 flex items-center justify-center overflow-hidden p-3 sm:p-6 min-h-0"
         onDragOver={(e) => e.preventDefault()}
         onDrop={handleDrop}
       >
@@ -363,7 +363,7 @@ export function EditTab({
       </div>
 
       {error && (
-        <div className="mx-4 md:mx-8 mb-3 p-3 bg-destructive/10 text-destructive text-sm rounded-lg border border-destructive/20 flex items-start gap-3">
+        <div className="mx-3 sm:mx-4 md:mx-8 mb-3 p-3 bg-destructive/10 text-destructive text-sm rounded-lg border border-destructive/20 flex items-start gap-3">
           <Info className="h-4 w-4 shrink-0 mt-0.5" />
           <p>{error}</p>
         </div>
@@ -371,7 +371,7 @@ export function EditTab({
 
       {/* Gallery thumbnail strip — only when there are gallery images and no result */}
       {!result && !isEditing && galleryImages.some((g) => g.mediaType.startsWith("image/")) && (
-        <div className="shrink-0 px-4 md:px-8 pb-2">
+        <div className="shrink-0 px-3 sm:px-4 md:px-8 pb-2">
           <div className="max-w-3xl mx-auto">
             <p className="text-xs text-muted-foreground mb-2">
               Aus Bibliothek wählen
@@ -411,7 +411,7 @@ export function EditTab({
       )}
 
       {/* Prompt-Card — Refs row, textarea, action bar */}
-      <div className="shrink-0 px-4 md:px-8 py-4">
+      <div className="shrink-0 px-3 sm:px-4 md:px-8 py-3 sm:py-4">
         <div className="max-w-3xl mx-auto rounded-2xl border border-border bg-card overflow-hidden focus-within:border-primary/50 transition-colors">
           {/* Row 1: Reference thumbnails + Add button */}
           <div className="flex items-center gap-2 flex-wrap px-3 py-3 border-b border-border/40">

@@ -82,24 +82,88 @@ export default function MediaStudio() {
   return (
     <div className="flex flex-col h-screen w-full bg-background overflow-hidden">
       {/* Top Bar */}
-      <header className="flex items-center justify-between px-6 md:px-10 h-14 shrink-0 border-b border-border/50">
-        {/* Brand: lernen.diy logo + Media Studio */}
-        <div className="flex items-center gap-3">
-          <span className="font-serif text-xl text-foreground leading-none">
-            lernen<span className="italic text-primary">.diy</span>
-          </span>
-          <span className="h-5 w-px bg-border" />
-          <span className="text-sm text-muted-foreground tracking-wide">
-            Media Studio
-          </span>
+      <header className="shrink-0 border-b border-border/50">
+        <div className="flex items-center justify-between gap-3 px-3 sm:px-6 md:px-10 h-12 md:h-14">
+          {/* Brand */}
+          <div className="flex items-center gap-2 md:gap-3 min-w-0">
+            <span className="font-serif text-lg md:text-xl text-foreground leading-none whitespace-nowrap">
+              lernen<span className="italic text-primary">.diy</span>
+            </span>
+            <span className="hidden sm:inline h-5 w-px bg-border" />
+            <span className="hidden sm:inline text-sm text-muted-foreground tracking-wide whitespace-nowrap">
+              Media Studio
+            </span>
+          </div>
+
+          {/* Desktop mode nav (centered) */}
+          <nav className="hidden md:flex items-center gap-1">
+            {MODES.map((m) => (
+              <button
+                key={m.id}
+                onClick={() => setMode(m.id)}
+                className={`relative px-3 py-1.5 text-sm font-medium transition-colors ${
+                  mode === m.id
+                    ? "text-foreground"
+                    : "text-muted-foreground hover:text-foreground"
+                }`}
+              >
+                {m.label}
+                {mode === m.id && (
+                  <span className="absolute bottom-0 left-3 right-3 h-0.5 bg-primary rounded-full" />
+                )}
+              </button>
+            ))}
+          </nav>
+
+          <div className="flex items-center gap-3 md:gap-4 text-sm shrink-0">
+            <nav className="hidden lg:flex items-center gap-5 text-base">
+              <a
+                href="https://lernen.diy"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="font-serif text-foreground/70 hover:text-foreground transition-colors leading-none"
+              >
+                lernen<span className="italic" style={{ color: "#0F766E" }}>.diy</span>
+              </a>
+              <a
+                href="https://unlearn.how"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="font-serif text-foreground/70 hover:text-foreground transition-colors leading-none"
+              >
+                <span className="italic">unlearn</span>
+                <span style={{ color: "#a855f7" }}>.how</span>
+              </a>
+              <a
+                href="https://loschke.ai"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-foreground/70 hover:text-foreground transition-colors leading-none font-medium"
+              >
+                loschke<span style={{ color: "#FC2D01" }}>.ai</span>
+              </a>
+            </nav>
+            <span className="h-5 w-px bg-border hidden lg:inline-block" />
+            <div className="flex items-center gap-1.5 text-muted-foreground whitespace-nowrap">
+              <span className="hidden sm:inline">Credits:</span>
+              <span
+                className={`font-bold ${
+                  generationsLeft < 5 ? "text-destructive" : "text-primary"
+                }`}
+              >
+                {generationsLeft}
+              </span>
+            </div>
+          </div>
         </div>
 
-        <nav className="flex items-center gap-1">
+        {/* Mobile mode nav — second row, horizontally scrollable */}
+        <nav className="md:hidden flex items-center gap-0 px-2 overflow-x-auto no-scrollbar border-t border-border/40">
           {MODES.map((m) => (
             <button
               key={m.id}
               onClick={() => setMode(m.id)}
-              className={`relative px-3 py-1.5 text-sm font-medium transition-colors ${
+              className={`relative shrink-0 px-3 py-2 text-sm font-medium transition-colors ${
                 mode === m.id
                   ? "text-foreground"
                   : "text-muted-foreground hover:text-foreground"
@@ -112,47 +176,6 @@ export default function MediaStudio() {
             </button>
           ))}
         </nav>
-
-        <div className="flex items-center gap-4 text-sm">
-          <nav className="hidden md:flex items-center gap-5 text-base">
-            <a
-              href="https://lernen.diy"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="font-serif text-foreground/70 hover:text-foreground transition-colors leading-none"
-            >
-              lernen<span className="italic" style={{ color: "#0F766E" }}>.diy</span>
-            </a>
-            <a
-              href="https://unlearn.how"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="font-serif text-foreground/70 hover:text-foreground transition-colors leading-none"
-            >
-              <span className="italic">unlearn</span>
-              <span style={{ color: "#a855f7" }}>.how</span>
-            </a>
-            <a
-              href="https://loschke.ai"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="text-foreground/70 hover:text-foreground transition-colors leading-none font-medium"
-            >
-              loschke<span style={{ color: "#FC2D01" }}>.ai</span>
-            </a>
-          </nav>
-          <span className="h-5 w-px bg-border hidden md:inline-block" />
-          <div className="flex items-center gap-1.5 text-muted-foreground">
-            <span className="hidden sm:inline">Credits:</span>
-            <span
-              className={`font-bold ${
-                generationsLeft < 5 ? "text-destructive" : "text-primary"
-              }`}
-            >
-              {generationsLeft}
-            </span>
-          </div>
-        </div>
       </header>
 
       {/* Content — fills remaining space */}

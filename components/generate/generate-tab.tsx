@@ -103,7 +103,7 @@ export function GenerateTab({
       )}
 
       {/* Canvas area — fit to viewport */}
-      <div className="flex-1 flex items-center justify-center overflow-hidden p-6 min-h-0">
+      <div className="flex-1 flex items-center justify-center overflow-hidden p-3 sm:p-6 min-h-0">
         {showCanvasImage ? (
           <ImagePreview
             image={latestImage!}
@@ -129,14 +129,14 @@ export function GenerateTab({
       </div>
 
       {error && (
-        <div className="mx-4 md:mx-8 mb-3 p-3 bg-destructive/10 text-destructive text-sm rounded-lg border border-destructive/20 flex items-start gap-3">
+        <div className="mx-3 sm:mx-4 md:mx-8 mb-3 p-3 bg-destructive/10 text-destructive text-sm rounded-lg border border-destructive/20 flex items-start gap-3">
           <Info className="h-4 w-4 shrink-0 mt-0.5" />
           <p>{error}</p>
         </div>
       )}
 
       {/* Prompt-Card — Textarea above, action bar below */}
-      <div className="shrink-0 px-4 md:px-8 py-4">
+      <div className="shrink-0 px-3 sm:px-4 md:px-8 py-3 sm:py-4">
         <div className="max-w-3xl mx-auto rounded-2xl border border-border bg-card overflow-hidden focus-within:border-primary/50 transition-colors">
           <div className="relative">
             <Textarea

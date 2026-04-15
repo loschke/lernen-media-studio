@@ -71,7 +71,7 @@ export function GalleryView({
 
   return (
     <div className="flex flex-col h-full">
-      <div className="shrink-0 flex items-center gap-3 px-4 md:px-6 pt-4 pb-2">
+      <div className="shrink-0 flex items-center gap-3 px-3 sm:px-4 md:px-6 pt-3 sm:pt-4 pb-2">
         <ToggleGroup
           type="single"
           value={filter}
@@ -106,7 +106,7 @@ export function GalleryView({
       </div>
 
       <ScrollArea className="flex-1 min-h-0">
-        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3 p-4 md:p-6 pt-2">
+        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-2 sm:gap-3 p-3 sm:p-4 md:p-6 pt-2">
           {filtered.map((item) => {
             const isVideo = item.mediaType.startsWith("video/");
             return (
@@ -157,7 +157,7 @@ export function GalleryView({
                     className="w-full h-full object-cover"
                   />
                 )}
-                <div className="absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity bg-gradient-to-t from-black/70 via-transparent to-black/40 flex flex-col justify-between p-2.5 pointer-events-none">
+                <div className="absolute inset-0 opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity bg-gradient-to-t from-black/70 via-transparent to-black/40 flex flex-col justify-between p-2.5 pointer-events-none">
                   <div className="flex justify-end gap-1.5 pointer-events-auto">
                     {!isVideo && (
                       <>
