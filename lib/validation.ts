@@ -6,6 +6,12 @@ export const MAX_PROMPT_CHARS = 2000;
 export const MAX_VIDEO_PROMPT_CHARS = 1024; // Veo API hard limit
 export const MAX_REF_IMAGES = 3;
 export const MAX_UPLOAD_BYTES = 10 * 1024 * 1024; // 10 MB per uploaded image
+export const ALLOWED_IMAGE_MIME_TYPES = [
+  "image/jpeg",
+  "image/png",
+  "image/webp",
+  "image/gif",
+] as const;
 
 export function base64ByteLength(data: string): number {
   const cleaned = data.replace(/^data:[^;]+;base64,/, "").replace(/\s/g, "");

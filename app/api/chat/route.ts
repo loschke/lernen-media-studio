@@ -1,7 +1,79 @@
 import { anthropic } from '@ai-sdk/anthropic';
 import { streamText, convertToModelMessages } from 'ai';
+import {
+  ALLOWED_IMAGE_MIME_TYPES,
+  MAX_PROMPT_CHARS,
+  MAX_REF_IMAGES,
+  MAX_UPLOAD_BYTES,
+  base64ByteLength,
+} from '@/lib/validation';
 
 export const maxDuration = 30;
+
+// History + aggregate caps. A legit workshop chat stays well under these.
+const MAX_MESSAGES_PER_REQUEST = 50;
+const MAX_IMAGES_PER_REQUEST = 12;
+const MAX_TEXT_CHARS_PER_MESSAGE = MAX_PROMPT_CHARS * 4; // assistant turns can be longer
+
+type ChatPart = {
+  type: string;
+  mediaType?: string;
+  url?: string;
+  text?: string;
+};
+type ChatMessage = { role?: string; parts?: ChatPart[] };
+
+function validatePayload(messages: unknown): string | null {
+  if (!Array.isArray(messages)) {
+    return 'Invalid payload: messages must be an array.';
+  }
+  if (messages.length === 0) {
+    return 'Invalid payload: messages array is empty.';
+  }
+  if (messages.length > MAX_MESSAGES_PER_REQUEST) {
+    return `Too many messages (max ${MAX_MESSAGES_PER_REQUEST}).`;
+  }
+
+  let totalImages = 0;
+
+  for (const msg of messages as ChatMessage[]) {
+    if (!Array.isArray(msg?.parts)) continue;
+    let imageCount = 0;
+    for (const part of msg.parts) {
+      if (part?.type === 'text') {
+        const text = typeof part.text === 'string' ? part.text : '';
+        if (text.length > MAX_TEXT_CHARS_PER_MESSAGE) {
+          return `Text part exceeds ${MAX_TEXT_CHARS_PER_MESSAGE} characters.`;
+        }
+        continue;
+      }
+      if (part?.type !== 'file') continue;
+      const mediaType = part.mediaType ?? '';
+      if (!mediaType.startsWith('image/')) {
+        return `Only image attachments are allowed (got ${mediaType || 'unknown'}).`;
+      }
+      if (!ALLOWED_IMAGE_MIME_TYPES.includes(mediaType as typeof ALLOWED_IMAGE_MIME_TYPES[number])) {
+        return `Unsupported image type: ${mediaType}. Allowed: ${ALLOWED_IMAGE_MIME_TYPES.join(', ')}.`;
+      }
+      imageCount++;
+      totalImages++;
+      if (typeof part.url === 'string' && part.url.startsWith('data:')) {
+        if (base64ByteLength(part.url) > MAX_UPLOAD_BYTES) {
+          return `Image exceeds ${Math.round(MAX_UPLOAD_BYTES / 1024 / 1024)} MB limit.`;
+        }
+      }
+    }
+    if (imageCount > MAX_REF_IMAGES) {
+      return `Maximum ${MAX_REF_IMAGES} images per message (got ${imageCount}).`;
+    }
+  }
+
+  if (totalImages > MAX_IMAGES_PER_REQUEST) {
+    return `Too many images across history (max ${MAX_IMAGES_PER_REQUEST}).`;
+  }
+
+  return null;
+}
 
 const SYSTEM_PROMPT = `Du bist der Workshop-Assistent der Bildwerkstatt von lernen.diy. Du hilfst Teilnehmern bei KI-Bildgenerierung und -bearbeitung — basierend auf dem Lehrmaterial des Workshops.
 
@@ -129,11 +201,39 @@ K1 Konzept (Subjekt + Medium) → K2 Kontext (Aktion, Schauplatz, Tageszeit, Epo
 Zweck und Zielgruppe → Konsistenz-Elemente (was bleibt fest) → variable Slots (was ändert sich) → Beispiel-Ausgabe mit ausgefüllter Variable. Am Ende die Formel in der Notation [FESTER TEIL] [VARIABLE] [FESTER TEIL].
 
 ### Video-Prompt formulieren — Reihenfolge
-Cinematography (Shot, Angle, Movement) → Subject → Action → Context (Wo/Wann) → Style → Audio. Pro Baustein eine Frage. Am Ende englischen Prompt zusammenstellen, Cinematography zuerst.`;
+Cinematography (Shot, Angle, Movement) → Subject → Action → Context (Wo/Wann) → Style → Audio. Pro Baustein eine Frage. Am Ende englischen Prompt zusammenstellen, Cinematography zuerst.
+
+## Bilder im Chat
+
+Wenn der Nutzer Bilder anhängt (bis zu 3), nutze sie aktiv:
+- **Reverse-Prompt:** Analysiere das Bild nach den 4K-Dimensionen (Konzept, Kontext, Komposition, Kreativität) und gib am Ende einen fertigen englischen Prompt als Code-Block aus.
+- **Stil-Extraktion:** Identifiziere Farbpalette, Licht, Textur, Medium und Epoche. Formuliere daraus einen wiederverwendbaren Style-Suffix (Text-Formel) als Code-Block.
+- **Editing-Beratung:** Empfehle den passenden Cluster (Transformieren/Editieren/Variieren/Kombinieren) und liefere konkrete Sprachbausteine ("Keep ... identical", "Only change ...").
+- **Video-Übergang (bei 2+ Bildern):** Beschreibe den Übergang in Cinematography-Vokabular (match cut, morph, dolly-through, whip pan etc.) mit Shot/Angle/Movement und kurzer Action-Beschreibung.
+Antworte in der Sprache des Nutzers.`;
 
 export async function POST(req: Request) {
   try {
+    // Hard cap on raw body size to prevent memory exhaustion.
+    // 3 images * 10 MB base64 (~13.3 MB each) + text + JSON overhead ≈ 45 MB.
+    const MAX_BODY_BYTES = 50 * 1024 * 1024;
+    const contentLength = Number(req.headers.get('content-length') ?? 0);
+    if (contentLength > MAX_BODY_BYTES) {
+      return new Response(
+        JSON.stringify({ error: 'Request body too large.' }),
+        { status: 413, headers: { 'Content-Type': 'application/json' } }
+      );
+    }
+
     const { messages } = await req.json();
+
+    const validationError = validatePayload(messages);
+    if (validationError) {
+      return new Response(JSON.stringify({ error: validationError }), {
+        status: 400,
+        headers: { 'Content-Type': 'application/json' },
+      });
+    }
 
     const result = streamText({
       model: anthropic('claude-haiku-4-5-20251001'),
