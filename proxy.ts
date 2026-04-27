@@ -6,6 +6,7 @@ const PUBLIC_PATHS = new Set<string>([
   "/api/auth/login",
   "/api/auth/callback",
   "/api/auth/logout",
+  "/api/auth/error",
   "/robots.txt",
 ]);
 

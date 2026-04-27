@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { cookies } from "next/headers";
-import { exchangeCode, verifyIdToken } from "@/lib/oidc";
+import { exchangeCode, verifyIdToken, decodeIdTokenClaims } from "@/lib/oidc";
 import { db } from "@/lib/db";
 import { users } from "@/drizzle/schema";
 import {
@@ -18,17 +18,26 @@ function defaultCredits(): number {
   return Number.isFinite(parsed) && parsed >= 0 ? parsed : 250;
 }
 
+function errorRedirect(url: URL, reason: string, detail?: string): NextResponse {
+  const target = new URL("/api/auth/error", url);
+  target.searchParams.set("reason", reason);
+  if (detail) target.searchParams.set("detail", detail);
+  return NextResponse.redirect(target);
+}
+
 export async function GET(req: Request) {
   const url = new URL(req.url);
   const code = url.searchParams.get("code");
   const state = url.searchParams.get("state");
   const error = url.searchParams.get("error");
+  const errorDescription = url.searchParams.get("error_description");
 
   if (error) {
-    return NextResponse.redirect(new URL(`/?auth_error=${encodeURIComponent(error)}`, url));
+    console.error("OAuth authorize returned error", { error, errorDescription });
+    return errorRedirect(url, error, errorDescription ?? undefined);
   }
   if (!code || !state) {
-    return NextResponse.json({ error: "missing_code_or_state" }, { status: 400 });
+    return errorRedirect(url, "missing_code_or_state");
   }
 
   const cookieStore = await cookies();
@@ -36,7 +45,7 @@ export async function GET(req: Request) {
   const verifier = cookieStore.get(OAUTH_VERIFIER_COOKIE)?.value;
 
   if (!storedState || !verifier || storedState !== state) {
-    return NextResponse.json({ error: "invalid_state" }, { status: 400 });
+    return errorRedirect(url, "invalid_state");
   }
 
   let tokens;
@@ -44,7 +53,7 @@ export async function GET(req: Request) {
     tokens = await exchangeCode(code, verifier);
   } catch (err) {
     console.error("Token exchange failed", err);
-    return NextResponse.json({ error: "token_exchange_failed" }, { status: 502 });
+    return errorRedirect(url, "token_exchange_failed", err instanceof Error ? err.message : String(err));
   }
 
   const idToken = tokens.idToken();
@@ -52,23 +61,39 @@ export async function GET(req: Request) {
   try {
     claims = await verifyIdToken(idToken);
   } catch (err) {
-    console.error("id_token verification failed", err);
-    return NextResponse.json({ error: "invalid_id_token" }, { status: 401 });
+    let unverifiedClaims: unknown = null;
+    try {
+      unverifiedClaims = decodeIdTokenClaims(idToken);
+    } catch {
+      // ignore
+    }
+    console.error("id_token verification failed", {
+      error: err instanceof Error ? err.message : String(err),
+      unverifiedClaims,
+      expectedIssuer: process.env.OIDC_ISSUER,
+      expectedAudience: process.env.OIDC_CLIENT_ID,
+    });
+    return errorRedirect(url, "invalid_id_token", err instanceof Error ? err.message : String(err));
   }
 
   if (!claims.email) {
-    return NextResponse.json({ error: "missing_email_claim" }, { status: 400 });
+    return errorRedirect(url, "missing_email_claim");
   }
 
-  await db
-    .insert(users)
-    .values({
-      sub: claims.sub,
-      email: claims.email,
-      name: claims.name ?? null,
-      credits: defaultCredits(),
-    })
-    .onConflictDoNothing({ target: users.sub });
+  try {
+    await db
+      .insert(users)
+      .values({
+        sub: claims.sub,
+        email: claims.email,
+        name: claims.name ?? null,
+        credits: defaultCredits(),
+      })
+      .onConflictDoNothing({ target: users.sub });
+  } catch (err) {
+    console.error("User upsert failed", err);
+    return errorRedirect(url, "db_insert_failed", err instanceof Error ? err.message : String(err));
+  }
 
   const response = NextResponse.redirect(new URL("/", url));
   const baseOptions = {

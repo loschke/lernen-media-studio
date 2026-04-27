@@ -15,7 +15,13 @@ function buildClient(): OAuth2Client {
   );
 }
 
-export const oidcScopes = ["openid", "profile", "email", "offline_access"];
+// Default-Scopes matchen die in `oauth_client.scopes` registrierten Werte.
+// Override via env, sobald `offline_access` in der DB freigeschaltet ist
+// (dann Refresh-Token-Flow nutzbar). Mehrere Scopes per Leerzeichen trennen.
+export const oidcScopes = (process.env.OIDC_SCOPES ?? "openid profile email organization")
+  .split(" ")
+  .map((s) => s.trim())
+  .filter((s) => s.length > 0);
 
 export function createAuthorizationUrl(state: string, codeVerifier: string): URL {
   const client = buildClient();
@@ -39,31 +45,10 @@ export async function refreshTokens(refreshToken: string) {
 }
 
 let _jwks: ReturnType<typeof createRemoteJWKSet> | null = null;
-let _jwksUrlPromise: Promise<URL> | null = null;
 
-async function resolveJwksUrl(): Promise<URL> {
-  if (_jwksUrlPromise) return _jwksUrlPromise;
-  _jwksUrlPromise = (async () => {
-    const issuer = requireEnv("OIDC_ISSUER");
-    const discoveryUrl = `${issuer.replace(/\/$/, "")}/.well-known/openid-configuration`;
-    const res = await fetch(discoveryUrl);
-    if (!res.ok) {
-      _jwksUrlPromise = null;
-      throw new Error(`OIDC discovery failed: ${res.status}`);
-    }
-    const config = (await res.json()) as { jwks_uri?: string };
-    if (!config.jwks_uri) {
-      _jwksUrlPromise = null;
-      throw new Error("OIDC discovery doc missing jwks_uri");
-    }
-    return new URL(config.jwks_uri);
-  })();
-  return _jwksUrlPromise;
-}
-
-async function getJwks() {
+function getJwks() {
   if (_jwks) return _jwks;
-  _jwks = createRemoteJWKSet(await resolveJwksUrl());
+  _jwks = createRemoteJWKSet(new URL(requireEnv("OIDC_JWKS_URL")));
   return _jwks;
 }
 
@@ -76,7 +61,7 @@ export type IdTokenClaims = JWTPayload & {
 };
 
 export async function verifyIdToken(idToken: string): Promise<IdTokenClaims> {
-  const jwks = await getJwks();
+  const jwks = getJwks();
   const { payload } = await jwtVerify(idToken, jwks, {
     issuer: requireEnv("OIDC_ISSUER"),
     audience: requireEnv("OIDC_CLIENT_ID"),
