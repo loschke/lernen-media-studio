@@ -32,8 +32,8 @@ export default function MediaStudio() {
     images,
     addImage,
     removeImage,
-    decrementCount,
-    generationsLeft,
+    setCredits,
+    credits,
     isLoaded,
   } = useGallery();
   const [mode, setMode] = useState<Mode>("generate");
@@ -148,10 +148,10 @@ export default function MediaStudio() {
               <span className="hidden sm:inline">Credits:</span>
               <span
                 className={`font-bold ${
-                  generationsLeft < 5 ? "text-destructive" : "text-primary"
+                  credits < 5 ? "text-destructive" : "text-primary"
                 }`}
               >
-                {generationsLeft}
+                {credits}
               </span>
             </div>
           </div>
@@ -183,9 +183,9 @@ export default function MediaStudio() {
         {mode === "generate" && (
           <GenerateTab
             images={images}
-            generationsLeft={generationsLeft}
+            credits={credits}
             addImage={addImage}
-            decrementCount={decrementCount}
+            setCredits={setCredits}
             onDownload={handleDownload}
             onLoadIntoEdit={handleLoadIntoEdit}
           />
@@ -193,9 +193,9 @@ export default function MediaStudio() {
         {mode === "edit" && (
           <EditTab
             galleryImages={images}
-            generationsLeft={generationsLeft}
+            credits={credits}
             addImage={addImage}
-            decrementCount={decrementCount}
+            setCredits={setCredits}
             pendingImage={pendingEditImage}
             onConsumePending={handleConsumePendingEdit}
           />
@@ -203,9 +203,9 @@ export default function MediaStudio() {
         {mode === "video" && (
           <VideoTab
             galleryImages={images}
-            generationsLeft={generationsLeft}
+            credits={credits}
             addVideo={addImage}
-            decrementCount={decrementCount}
+            setCredits={setCredits}
             pendingStartFrame={pendingVideoStartFrame}
             onConsumePending={handleConsumePendingVideo}
           />

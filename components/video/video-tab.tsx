@@ -41,18 +41,18 @@ const POLL_INTERVAL_MS = 7000;
 
 interface VideoTabProps {
   galleryImages: GalleryImage[];
-  generationsLeft: number;
+  credits: number;
   addVideo: (video: GalleryImage) => void;
-  decrementCount: (amount?: number) => void;
+  setCredits: (value: number) => void;
   pendingStartFrame: GalleryImage | null;
   onConsumePending: () => void;
 }
 
 export function VideoTab({
   galleryImages,
-  generationsLeft,
+  credits,
   addVideo,
-  decrementCount,
+  setCredits,
   pendingStartFrame,
   onConsumePending,
 }: VideoTabProps) {
@@ -155,6 +155,9 @@ export function VideoTab({
         }),
       });
       const startData = await startRes.json();
+      if (typeof startData.credits === "number") {
+        setCredits(startData.credits);
+      }
       if (!startRes.ok) {
         throw new Error(startData.error || "Start fehlgeschlagen");
       }
@@ -184,7 +187,6 @@ export function VideoTab({
           const video: GalleryImage = statusData.video;
           setResult(video);
           addVideo(video);
-          decrementCount(getModelCost(model));
           break;
         }
 
@@ -212,7 +214,7 @@ export function VideoTab({
     startFrame,
     endFrame,
     addVideo,
-    decrementCount,
+    setCredits,
   ]);
 
   const handleNew = () => {
@@ -444,7 +446,7 @@ export function VideoTab({
               <Button
                 onClick={handleGenerate}
                 disabled={
-                  !prompt.trim() || isGenerating || generationsLeft < cost
+                  !prompt.trim() || isGenerating || credits < cost
                 }
                 size="sm"
                 className="h-8 px-3 bg-primary hover:bg-primary/90 text-primary-foreground font-medium"

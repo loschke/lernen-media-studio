@@ -29,9 +29,9 @@ const MAX_IMAGES = 3;
 
 interface EditTabProps {
   galleryImages: GalleryImage[];
-  generationsLeft: number;
+  credits: number;
   addImage: (image: GalleryImage) => void;
-  decrementCount: (amount?: number) => void;
+  setCredits: (value: number) => void;
   pendingImage: GalleryImage | null;
   onConsumePending: () => void;
 }
@@ -58,9 +58,9 @@ function isSameSelected(a: SelectedImage, b: SelectedImage): boolean {
 
 export function EditTab({
   galleryImages,
-  generationsLeft,
+  credits,
   addImage,
-  decrementCount,
+  setCredits,
   pendingImage,
   onConsumePending,
 }: EditTabProps) {
@@ -193,6 +193,10 @@ export function EditTab({
 
       const data = await res.json();
 
+      if (typeof data.credits === "number") {
+        setCredits(data.credits);
+      }
+
       if (!res.ok) {
         throw new Error(data.error || "Fehler bei der Bearbeitung");
       }
@@ -200,9 +204,7 @@ export function EditTab({
       if (data.images && data.images.length > 0) {
         const resultImage: GalleryImage = data.images[0];
         setResult(resultImage);
-        // Image is already in R2; mirror in local gallery state.
         addImage(resultImage);
-        decrementCount(getModelCost(editModel));
       }
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : "Unbekannter Fehler");
@@ -486,7 +488,7 @@ export function EditTab({
                 !prompt.trim() ||
                 selectedImages.length === 0 ||
                 isEditing ||
-                generationsLeft < editCost
+                credits < editCost
               }
               size="sm"
               className="h-8 px-3 bg-primary hover:bg-primary/90 text-primary-foreground font-medium"

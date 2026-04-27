@@ -8,45 +8,11 @@ export interface GalleryImage {
   mediaType: string;
 }
 
-const COUNT_KEY = "media_studio_count";
-
 export function useGallery() {
   const [images, setImages] = useState<GalleryImage[]>([]);
-  const [generationsLeft, setGenerationsLeft] = useState<number>(0);
+  const [credits, setCreditsState] = useState<number>(0);
   const [isLoaded, setIsLoaded] = useState(false);
   const [isFetching, setIsFetching] = useState(false);
-
-  // Initial load: credits from localStorage, gallery from API. If no local
-  // count yet, fetch the server-configured default from /api/config
-  // (reads DEFAULT_CREDITS env).
-  useEffect(() => {
-    const count = localStorage.getItem(COUNT_KEY);
-    if (count) {
-      setGenerationsLeft(parseInt(count, 10));
-      fetchGallery().finally(() => setIsLoaded(true));
-      return;
-    }
-
-    (async () => {
-      let initialCount = 100;
-      try {
-        const res = await fetch("/api/config", { cache: "no-store" });
-        if (res.ok) {
-          const data = (await res.json()) as { defaultCredits?: number };
-          if (typeof data.defaultCredits === "number" && data.defaultCredits > 0) {
-            initialCount = data.defaultCredits;
-          }
-        }
-      } catch {
-        // Fall back to 100 if the config endpoint is unreachable.
-      }
-      setGenerationsLeft(initialCount);
-      try {
-        localStorage.setItem(COUNT_KEY, initialCount.toString());
-      } catch {}
-      fetchGallery().finally(() => setIsLoaded(true));
-    })();
-  }, []);
 
   const fetchGallery = useCallback(async () => {
     setIsFetching(true);
@@ -63,6 +29,26 @@ export function useGallery() {
     }
   }, []);
 
+  const fetchCredits = useCallback(async () => {
+    try {
+      const res = await fetch("/api/credits", { cache: "no-store" });
+      if (res.ok) {
+        const data = (await res.json()) as { credits?: number };
+        if (typeof data.credits === "number") {
+          setCreditsState(data.credits);
+        }
+      }
+    } catch (err) {
+      console.warn("Credits fetch failed", err);
+    }
+  }, []);
+
+  useEffect(() => {
+    Promise.all([fetchCredits(), fetchGallery()]).finally(() =>
+      setIsLoaded(true)
+    );
+  }, [fetchCredits, fetchGallery]);
+
   /**
    * Optimistically prepend a freshly-uploaded image (returned from
    * /api/generate or /api/edit) to the local state. The image is already
@@ -70,14 +56,12 @@ export function useGallery() {
    */
   const addImage = useCallback((image: GalleryImage) => {
     setImages((prev) => {
-      // Avoid duplicates if a refetch already added it.
       if (prev.some((p) => p.id === image.id)) return prev;
       return [image, ...prev];
     });
   }, []);
 
   const removeImage = useCallback(async (id: string) => {
-    // Optimistic UI: remove first, then call server.
     setImages((prev) => prev.filter((i) => i.id !== id));
     try {
       await fetch("/api/gallery/delete", {
@@ -87,28 +71,29 @@ export function useGallery() {
       });
     } catch (err) {
       console.warn("Gallery delete failed", err);
-      // Refetch to restore truth on error.
       fetchGallery();
     }
   }, [fetchGallery]);
 
-  const decrementCount = useCallback((amount: number = 1) => {
-    setGenerationsLeft((p) => {
-      const n = Math.max(0, p - amount);
-      try {
-        localStorage.setItem(COUNT_KEY, n.toString());
-      } catch {}
-      return n;
-    });
+  /**
+   * Server-side Credits sind die Source of Truth. Routes liefern den neuen
+   * Stand im Response-Feld `credits` mit; UI übernimmt diesen Wert
+   * unverändert. Kein optimistic local decrement.
+   */
+  const setCredits = useCallback((value: number) => {
+    if (typeof value === "number" && Number.isFinite(value)) {
+      setCreditsState(Math.max(0, value));
+    }
   }, []);
 
   return {
     images,
     addImage,
     removeImage,
-    decrementCount,
+    setCredits,
+    refetchCredits: fetchCredits,
     refetchGallery: fetchGallery,
-    generationsLeft,
+    credits,
     isLoaded,
     isFetching,
   };

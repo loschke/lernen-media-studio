@@ -7,11 +7,13 @@ import {
   VIDEO_ASPECT_RATIOS,
   VIDEO_DURATIONS,
   videoSupportsEndFrame,
+  getModelCost,
   type VideoModelId,
   type VideoAspectRatio,
   type VideoDuration,
 } from "@/lib/models";
-import { getSessionId } from "@/lib/session";
+import { getCurrentUser } from "@/lib/session";
+import { spendCredits, refundCredits } from "@/lib/credits";
 import { fetchImageBuffer, r2Configured } from "@/lib/r2";
 import {
   MAX_VIDEO_PROMPT_CHARS,
@@ -34,10 +36,10 @@ type ImageRef = ImageRefGallery | ImageRefUpload;
 
 async function resolveFrame(
   ref: ImageRef,
-  sessionId: string
+  sub: string
 ): Promise<{ imageBytes: string; mimeType: string }> {
   if (ref.source === "gallery") {
-    const { buffer, mediaType } = await fetchImageBuffer(sessionId, ref.id);
+    const { buffer, mediaType } = await fetchImageBuffer(sub, ref.id);
     return { imageBytes: buffer.toString("base64"), mimeType: mediaType };
   }
   const cleaned = ref.data.replace(/^data:image\/\w+;base64,/, "");
@@ -57,88 +59,98 @@ function resolveApiKey(): string | null {
 }
 
 export async function POST(req: Request) {
-  try {
-    if (!r2Configured) {
-      return new Response(
-        JSON.stringify({ error: "Storage nicht konfiguriert (R2 Env-Vars fehlen)." }),
-        { status: 500 }
-      );
-    }
-    const apiKey = resolveApiKey();
-    if (!apiKey) {
-      return new Response(
-        JSON.stringify({ error: "Gemini API Key nicht konfiguriert." }),
-        { status: 500 }
-      );
-    }
+  if (!r2Configured) {
+    return new Response(
+      JSON.stringify({ error: "Storage nicht konfiguriert (R2 Env-Vars fehlen)." }),
+      { status: 500 }
+    );
+  }
+  const apiKey = resolveApiKey();
+  if (!apiKey) {
+    return new Response(
+      JSON.stringify({ error: "Gemini API Key nicht konfiguriert." }),
+      { status: 500 }
+    );
+  }
 
-    const sessionId = await getSessionId();
-    if (!sessionId) {
-      return new Response(JSON.stringify({ error: "Keine Session — bitte neu anmelden." }), { status: 401 });
-    }
+  const user = await getCurrentUser();
+  if (!user) {
+    return new Response(JSON.stringify({ error: "Keine Session — bitte neu anmelden." }), { status: 401 });
+  }
 
-    const body = (await req.json()) as {
-      prompt: string;
-      model?: string;
-      aspectRatio?: string;
-      duration?: number;
-      startFrame?: ImageRef;
-      endFrame?: ImageRef;
-    };
+  const body = (await req.json()) as {
+    prompt: string;
+    model?: string;
+    aspectRatio?: string;
+    duration?: number;
+    startFrame?: ImageRef;
+    endFrame?: ImageRef;
+  };
 
-    if (!body.prompt || typeof body.prompt !== "string") {
-      return new Response(JSON.stringify({ error: "Prompt ist erforderlich." }), { status: 400 });
-    }
-    if (body.prompt.length > MAX_VIDEO_PROMPT_CHARS) {
-      return new Response(
-        JSON.stringify({ error: `Prompt zu lang (max. ${MAX_VIDEO_PROMPT_CHARS} Zeichen).` }),
-        { status: 400 }
-      );
-    }
-    for (const frame of [body.startFrame, body.endFrame]) {
-      if (frame?.source === "upload" && base64ByteLength(frame.data) > MAX_UPLOAD_BYTES) {
-        return new Response(
-          JSON.stringify({
-            error: `Frame zu groß (max. ${Math.round(MAX_UPLOAD_BYTES / 1024 / 1024)} MB).`,
-          }),
-          { status: 400 }
-        );
-      }
-    }
-
-    const model: VideoModelId =
-      typeof body.model === "string" && ALLOWED_VIDEO_MODEL_IDS.has(body.model)
-        ? (body.model as VideoModelId)
-        : DEFAULT_VIDEO_MODEL;
-
-    const aspectRatio: VideoAspectRatio =
-      body.aspectRatio && (VIDEO_ASPECT_RATIOS as readonly string[]).includes(body.aspectRatio)
-        ? (body.aspectRatio as VideoAspectRatio)
-        : DEFAULT_VIDEO_ASPECT_RATIO;
-
-    const duration: VideoDuration =
-      body.duration && (VIDEO_DURATIONS as readonly number[]).includes(body.duration)
-        ? (body.duration as VideoDuration)
-        : DEFAULT_VIDEO_DURATION;
-
-    // Endframe wird nur von Veo 3.1 Fast und Pro unterstützt (nicht Lite).
-    if (body.endFrame && !videoSupportsEndFrame(model)) {
+  if (!body.prompt || typeof body.prompt !== "string") {
+    return new Response(JSON.stringify({ error: "Prompt ist erforderlich." }), { status: 400 });
+  }
+  if (body.prompt.length > MAX_VIDEO_PROMPT_CHARS) {
+    return new Response(
+      JSON.stringify({ error: `Prompt zu lang (max. ${MAX_VIDEO_PROMPT_CHARS} Zeichen).` }),
+      { status: 400 }
+    );
+  }
+  for (const frame of [body.startFrame, body.endFrame]) {
+    if (frame?.source === "upload" && base64ByteLength(frame.data) > MAX_UPLOAD_BYTES) {
       return new Response(
         JSON.stringify({
-          error:
-            "Das gewählte Modell unterstützt keinen Endframe. Bitte Veo 3.1 Fast oder Veo 3.1 wählen.",
+          error: `Frame zu groß (max. ${Math.round(MAX_UPLOAD_BYTES / 1024 / 1024)} MB).`,
         }),
         { status: 400 }
       );
     }
+  }
 
+  const model: VideoModelId =
+    typeof body.model === "string" && ALLOWED_VIDEO_MODEL_IDS.has(body.model)
+      ? (body.model as VideoModelId)
+      : DEFAULT_VIDEO_MODEL;
+
+  const aspectRatio: VideoAspectRatio =
+    body.aspectRatio && (VIDEO_ASPECT_RATIOS as readonly string[]).includes(body.aspectRatio)
+      ? (body.aspectRatio as VideoAspectRatio)
+      : DEFAULT_VIDEO_ASPECT_RATIO;
+
+  const duration: VideoDuration =
+    body.duration && (VIDEO_DURATIONS as readonly number[]).includes(body.duration)
+      ? (body.duration as VideoDuration)
+      : DEFAULT_VIDEO_DURATION;
+
+  if (body.endFrame && !videoSupportsEndFrame(model)) {
+    return new Response(
+      JSON.stringify({
+        error:
+          "Das gewählte Modell unterstützt keinen Endframe. Bitte Veo 3.1 Fast oder Veo 3.1 wählen.",
+      }),
+      { status: 400 }
+    );
+  }
+
+  const cost = getModelCost(model);
+  const spend = await spendCredits(user.sub, cost);
+  if (!spend.ok) {
+    return new Response(
+      JSON.stringify({ error: 'insufficient_credits', credits: spend.remaining, cost }),
+      { status: 402, headers: { 'Content-Type': 'application/json' } }
+    );
+  }
+
+  let credits = spend.remaining;
+
+  try {
     const ai = new GoogleGenAI({ apiKey });
 
     const image = body.startFrame
-      ? await resolveFrame(body.startFrame, sessionId)
+      ? await resolveFrame(body.startFrame, user.sub)
       : undefined;
     const lastFrame = body.endFrame
-      ? await resolveFrame(body.endFrame, sessionId)
+      ? await resolveFrame(body.endFrame, user.sub)
       : undefined;
 
     const config: Record<string, unknown> = {
@@ -155,8 +167,6 @@ export async function POST(req: Request) {
       config,
     });
 
-    // Operation name is stable; store context client-side so the status route
-    // can persist the final video with the correct prompt/model on completion.
     return new Response(
       JSON.stringify({
         operationName: op.name,
@@ -164,25 +174,32 @@ export async function POST(req: Request) {
         model,
         aspectRatio,
         duration,
+        cost,
+        credits,
       }),
       { status: 200, headers: { "Content-Type": "application/json" } }
     );
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error("Video start error:", error);
-    const status = error?.status || error?.response?.status;
+    credits = await refundCredits(user.sub, cost);
+    const status = (error as { status?: number; response?: { status?: number } })?.status ??
+      (error as { response?: { status?: number } })?.response?.status;
     if (status === 429) {
       return new Response(
         JSON.stringify({
           error:
-            "Das Video-Kontingent für heute ist aufgebraucht. Bitte später erneut versuchen oder einen Screenshot machen und Rico melden.",
+            "Das Video-Kontingent für heute ist aufgebraucht. Credits wurden zurückerstattet.",
+          credits,
         }),
         { status: 429 }
       );
     }
+    const message = error instanceof Error ? error.message : "Unknown error";
     return new Response(
       JSON.stringify({
         error: "Fehler beim Starten der Video-Generierung",
-        details: error?.message || "Unknown error",
+        details: message,
+        credits,
       }),
       { status: 500 }
     );

@@ -13,18 +13,18 @@ import type { GalleryImage } from "@/hooks/useGallery";
 
 interface GenerateTabProps {
   images: GalleryImage[];
-  generationsLeft: number;
+  credits: number;
   addImage: (image: GalleryImage) => void;
-  decrementCount: (amount?: number) => void;
+  setCredits: (value: number) => void;
   onDownload: (image: GalleryImage) => void;
   onLoadIntoEdit: (image: GalleryImage) => void;
 }
 
 export function GenerateTab({
   images,
-  generationsLeft,
+  credits,
   addImage,
-  decrementCount,
+  setCredits,
   onDownload,
   onLoadIntoEdit,
 }: GenerateTabProps) {
@@ -57,13 +57,16 @@ export function GenerateTab({
 
       const data = await res.json();
 
+      if (typeof data.credits === "number") {
+        setCredits(data.credits);
+      }
+
       if (!res.ok) {
         throw new Error(data.error || "Fehler bei der Generierung");
       }
 
       if (data.images && data.images.length > 0) {
         data.images.forEach((img: GalleryImage) => addImage(img));
-        decrementCount(getModelCost(model));
       }
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : "Unbekannter Fehler");
@@ -176,7 +179,7 @@ export function GenerateTab({
               disabled={
                 !prompt.trim() ||
                 isGenerating ||
-                generationsLeft < generateCost
+                credits < generateCost
               }
               size="sm"
               className="h-8 px-3 bg-primary hover:bg-primary/90 text-primary-foreground font-medium"
