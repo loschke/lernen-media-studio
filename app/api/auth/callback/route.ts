@@ -95,7 +95,7 @@ export async function GET(req: Request) {
     return errorRedirect(url, "db_insert_failed", err instanceof Error ? err.message : String(err));
   }
 
-  const response = NextResponse.redirect(new URL("/", url));
+  const response = NextResponse.redirect(new URL("/app", url));
   const baseOptions = {
     httpOnly: true,
     secure: process.env.NODE_ENV === "production",

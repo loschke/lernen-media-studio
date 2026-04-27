@@ -2,7 +2,13 @@ import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 
 const ID_TOKEN_COOKIE = "ms_id_token";
+
+// Pfade, die ohne Auth durchgelassen werden:
+// - / (Landing-Page)
+// - /api/auth/* (Login-Flow)
+// - /robots.txt
 const PUBLIC_PATHS = new Set<string>([
+  "/",
   "/api/auth/login",
   "/api/auth/callback",
   "/api/auth/logout",
@@ -39,15 +45,16 @@ export function proxy(request: NextRequest) {
     return securityHeaders(NextResponse.next());
   }
 
+  // /api/* ohne Cookie → 401, kein Redirect-Hinweis (vermeidet Bot-Mapping)
   if (pathname.startsWith("/api/")) {
     return securityHeaders(
       NextResponse.json({ error: "Unauthorized" }, { status: 401 }),
     );
   }
 
-  return securityHeaders(
-    NextResponse.redirect(new URL("/api/auth/login", request.url)),
-  );
+  // Alles andere (insbesondere /app/*) ohne Cookie → zurück auf die Landing.
+  // User entscheidet aktiv via Anmelden-Button, ob er den Auth-Flow startet.
+  return securityHeaders(NextResponse.redirect(new URL("/", request.url)));
 }
 
 export const config = {
