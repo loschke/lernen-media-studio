@@ -6,6 +6,7 @@ const REASON_LABELS: Record<string, string> = {
   token_exchange_failed: "Token-Austausch mit dem Auth-Server fehlgeschlagen.",
   missing_email_claim: "Auth-Server hat keine E-Mail-Adresse zurückgegeben.",
   missing_code_or_state: "Unvollständige Auth-Antwort.",
+  no_membership: "Du bist für diesen Bereich noch nicht freigeschaltet. Bitte wende dich an deinen Administrator.",
 };
 
 function escapeHtml(s: string): string {

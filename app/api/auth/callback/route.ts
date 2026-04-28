@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { cookies } from "next/headers";
 import { exchangeCode, verifyIdToken, decodeIdTokenClaims } from "@/lib/oidc";
+import { checkOrgMembership } from "@/lib/claims";
 import { db } from "@/lib/db";
 import { users } from "@/drizzle/schema";
 import {
@@ -74,6 +75,17 @@ export async function GET(req: Request) {
       expectedAudience: process.env.OIDC_CLIENT_ID,
     });
     return errorRedirect(url, "invalid_id_token", err instanceof Error ? err.message : String(err));
+  }
+
+  const membership = checkOrgMembership(claims);
+  if (membership.reason === "no_membership") {
+    console.error("[auth/callback] no_membership", {
+      sub: claims.sub,
+      email: claims.email,
+      required: membership.required,
+      organizations: claims.organizations,
+    });
+    return errorRedirect(url, "no_membership", `required: ${membership.required}`);
   }
 
   if (!claims.email) {
