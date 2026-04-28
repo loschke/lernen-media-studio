@@ -118,23 +118,6 @@ export default function MediaStudio() {
           <div className="flex items-center gap-3 md:gap-4 text-sm shrink-0">
             <nav className="hidden lg:flex items-center gap-5 text-base">
               <a
-                href="https://lernen.diy"
-                target="_blank"
-                rel="noopener noreferrer"
-                className="font-serif text-foreground/70 hover:text-foreground transition-colors leading-none"
-              >
-                lernen<span className="italic" style={{ color: "#0F766E" }}>.diy</span>
-              </a>
-              <a
-                href="https://unlearn.how"
-                target="_blank"
-                rel="noopener noreferrer"
-                className="font-serif text-foreground/70 hover:text-foreground transition-colors leading-none"
-              >
-                <span className="italic">unlearn</span>
-                <span style={{ color: "#a855f7" }}>.how</span>
-              </a>
-              <a
                 href="https://loschke.ai"
                 target="_blank"
                 rel="noopener noreferrer"
