@@ -5,7 +5,7 @@ import { verifyIdToken, refreshTokens, type IdTokenClaims } from "@/lib/oidc";
 // API-Routes).
 export const ID_TOKEN_COOKIE = "ms_id_token";
 export const REFRESH_TOKEN_COOKIE = "ms_refresh";
-export const ID_TOKEN_MAX_AGE_SECONDS = 60 * 60; // 1h, matches id_token TTL
+export const ID_TOKEN_MAX_AGE_SECONDS = 8 * 60 * 60; // 8h, matches id_token TTL
 export const REFRESH_TOKEN_MAX_AGE_SECONDS = 7 * 24 * 60 * 60; // 7d
 
 // Transient PKCE/State-Cookies während des Authorization-Code-Flows.
