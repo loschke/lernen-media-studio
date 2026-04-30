@@ -149,7 +149,7 @@ export async function getMediaUrl(
   sessionId: string,
   id: string,
   ext?: string,
-  expiresIn: number = 900
+  expiresIn: number = 28800
 ): Promise<string> {
   if (!r2Client) throw new Error("R2 not configured");
   let resolvedExt = ext;
@@ -171,7 +171,7 @@ export async function getMediaUrl(
 export async function getImageUrl(
   sessionId: string,
   id: string,
-  expiresIn: number = 900
+  expiresIn: number = 28800
 ): Promise<string> {
   return getMediaUrl(sessionId, id, "png", expiresIn);
 }

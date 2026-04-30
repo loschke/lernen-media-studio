@@ -50,6 +50,24 @@ export function useGallery() {
   }, [fetchCredits, fetchGallery]);
 
   /**
+   * Presigned R2 URLs expire after 8h. When the tab regains focus or
+   * visibility, refresh the gallery so stale URLs get replaced before the
+   * user notices broken thumbnails.
+   */
+  useEffect(() => {
+    const onVisible = () => {
+      if (document.visibilityState === "visible") fetchGallery();
+    };
+    const onFocus = () => fetchGallery();
+    document.addEventListener("visibilitychange", onVisible);
+    window.addEventListener("focus", onFocus);
+    return () => {
+      document.removeEventListener("visibilitychange", onVisible);
+      window.removeEventListener("focus", onFocus);
+    };
+  }, [fetchGallery]);
+
+  /**
    * Optimistically prepend a freshly-uploaded image (returned from
    * /api/generate or /api/edit) to the local state. The image is already
    * persisted in R2 by the API.
