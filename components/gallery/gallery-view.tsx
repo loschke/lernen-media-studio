@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import {
   ImageIcon,
   Download,
@@ -10,10 +10,13 @@ import {
   Play,
   Copy,
   Check,
+  ChevronLeft,
+  ChevronRight,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
+import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
 import type { GalleryImage } from "@/hooks/useGallery";
 
 type Filter = "all" | "image" | "video";
@@ -35,6 +38,7 @@ export function GalleryView({
 }: GalleryViewProps) {
   const [filter, setFilter] = useState<Filter>("all");
   const [copiedId, setCopiedId] = useState<string | null>(null);
+  const [lightboxIndex, setLightboxIndex] = useState<number | null>(null);
 
   const handleCopyPrompt = async (item: GalleryImage) => {
     try {
@@ -54,6 +58,28 @@ export function GalleryView({
     if (filter === "video") return i.mediaType.startsWith("video/");
     return true;
   });
+
+  const lightboxItem =
+    lightboxIndex !== null && lightboxIndex < filtered.length
+      ? filtered[lightboxIndex]
+      : null;
+
+  useEffect(() => {
+    if (lightboxIndex === null) return;
+    const handler = (e: KeyboardEvent) => {
+      if (e.key === "ArrowRight") {
+        setLightboxIndex((i) =>
+          i === null ? null : (i + 1) % filtered.length
+        );
+      } else if (e.key === "ArrowLeft") {
+        setLightboxIndex((i) =>
+          i === null ? null : (i - 1 + filtered.length) % filtered.length
+        );
+      }
+    };
+    window.addEventListener("keydown", handler);
+    return () => window.removeEventListener("keydown", handler);
+  }, [lightboxIndex, filtered.length]);
 
   if (images.length === 0) {
     return (
@@ -107,56 +133,63 @@ export function GalleryView({
 
       <ScrollArea className="flex-1 min-h-0">
         <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-2 sm:gap-3 p-3 sm:p-4 md:p-6 pt-2">
-          {filtered.map((item) => {
+          {filtered.map((item, idx) => {
             const isVideo = item.mediaType.startsWith("video/");
             return (
               <div
                 key={item.id}
                 className="group relative rounded-lg overflow-hidden border border-border bg-card aspect-square"
               >
-                {isVideo ? (
-                  <>
-                    <video
-                      src={item.url}
-                      className="w-full h-full object-cover"
-                      playsInline
-                      preload="metadata"
-                      onMouseEnter={(e) => {
-                        const v = e.currentTarget;
-                        v.muted = false;
-                        v.volume = 1;
-                        v.play().catch(() => {
-                          // Browser autoplay policy may reject unmuted
-                          // programmatic play — fall back to muted playback.
+                <button
+                  type="button"
+                  onClick={() => setLightboxIndex(idx)}
+                  aria-label={isVideo ? "Video vergrößern" : "Bild vergrößern"}
+                  className="absolute inset-0 cursor-zoom-in focus:outline-none focus-visible:ring-2 focus-visible:ring-primary"
+                >
+                  {isVideo ? (
+                    <>
+                      <video
+                        src={item.url}
+                        className="w-full h-full object-cover"
+                        playsInline
+                        preload="metadata"
+                        onMouseEnter={(e) => {
+                          const v = e.currentTarget;
+                          v.muted = false;
+                          v.volume = 1;
+                          v.play().catch(() => {
+                            // Browser autoplay policy may reject unmuted
+                            // programmatic play — fall back to muted playback.
+                            v.muted = true;
+                            v.play().catch(() => {});
+                          });
+                        }}
+                        onMouseLeave={(e) => {
+                          const v = e.currentTarget;
+                          v.pause();
+                          v.currentTime = 0;
                           v.muted = true;
-                          v.play().catch(() => {});
-                        });
-                      }}
-                      onMouseLeave={(e) => {
-                        const v = e.currentTarget;
-                        v.pause();
-                        v.currentTime = 0;
-                        v.muted = true;
-                      }}
-                    />
-                    <div className="absolute top-2 left-2 px-1.5 py-0.5 rounded-md bg-black/60 text-white text-[10px] font-medium flex items-center gap-1 backdrop-blur-sm">
-                      <Film className="h-3 w-3" />
-                      Video
-                    </div>
-                    <div className="absolute inset-0 flex items-center justify-center pointer-events-none group-hover:opacity-0 transition-opacity">
-                      <div className="rounded-full bg-black/50 p-3">
-                        <Play className="h-6 w-6 text-white fill-white" />
+                        }}
+                      />
+                      <div className="absolute top-2 left-2 px-1.5 py-0.5 rounded-md bg-black/60 text-white text-[10px] font-medium flex items-center gap-1 backdrop-blur-sm">
+                        <Film className="h-3 w-3" />
+                        Video
                       </div>
-                    </div>
-                  </>
-                ) : (
-                  <img
-                    src={item.url}
-                    alt={item.prompt}
-                    loading="lazy"
-                    className="w-full h-full object-cover"
-                  />
-                )}
+                      <div className="absolute inset-0 flex items-center justify-center pointer-events-none group-hover:opacity-0 transition-opacity">
+                        <div className="rounded-full bg-black/50 p-3">
+                          <Play className="h-6 w-6 text-white fill-white" />
+                        </div>
+                      </div>
+                    </>
+                  ) : (
+                    <img
+                      src={item.url}
+                      alt={item.prompt}
+                      loading="lazy"
+                      className="w-full h-full object-cover"
+                    />
+                  )}
+                </button>
                 <div className="absolute inset-0 opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity bg-gradient-to-t from-black/70 via-transparent to-black/40 flex flex-col justify-between p-2.5 pointer-events-none">
                   <div className="flex justify-end gap-1.5 pointer-events-auto">
                     {!isVideo && (
@@ -217,6 +250,80 @@ export function GalleryView({
           })}
         </div>
       </ScrollArea>
+
+      <Dialog
+        open={lightboxItem !== null}
+        onOpenChange={(open) => {
+          if (!open) setLightboxIndex(null);
+        }}
+      >
+        <DialogContent className="max-w-[95vw] max-h-[95vh] w-[95vw] h-[95vh] p-0 border-border bg-card/95 backdrop-blur-sm sm:max-w-[95vw] flex flex-col">
+          <DialogTitle className="sr-only">
+            {lightboxItem?.prompt || "Medium"}
+          </DialogTitle>
+          {lightboxItem && (
+            <>
+              <div className="relative flex-1 min-h-0 flex items-center justify-center p-4">
+                {lightboxItem.mediaType.startsWith("video/") ? (
+                  <video
+                    key={lightboxItem.id}
+                    src={lightboxItem.url}
+                    className="max-w-full max-h-full object-contain rounded-lg"
+                    controls
+                    autoPlay
+                    playsInline
+                  />
+                ) : (
+                  <img
+                    key={lightboxItem.id}
+                    src={lightboxItem.url}
+                    alt={lightboxItem.prompt}
+                    className="max-w-full max-h-full object-contain rounded-lg"
+                  />
+                )}
+
+                {filtered.length > 1 && (
+                  <>
+                    <button
+                      type="button"
+                      onClick={() =>
+                        setLightboxIndex((i) =>
+                          i === null
+                            ? null
+                            : (i - 1 + filtered.length) % filtered.length
+                        )
+                      }
+                      aria-label="Vorheriges"
+                      className="absolute left-3 top-1/2 -translate-y-1/2 rounded-full bg-black/50 hover:bg-black/70 text-white p-2 transition-colors"
+                    >
+                      <ChevronLeft className="h-6 w-6" />
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() =>
+                        setLightboxIndex((i) =>
+                          i === null ? null : (i + 1) % filtered.length
+                        )
+                      }
+                      aria-label="Nächstes"
+                      className="absolute right-3 top-1/2 -translate-y-1/2 rounded-full bg-black/50 hover:bg-black/70 text-white p-2 transition-colors"
+                    >
+                      <ChevronRight className="h-6 w-6" />
+                    </button>
+                  </>
+                )}
+              </div>
+              {lightboxItem.prompt && (
+                <div className="shrink-0 px-6 pb-5 pt-1">
+                  <p className="text-sm text-muted-foreground line-clamp-3">
+                    {lightboxItem.prompt}
+                  </p>
+                </div>
+              )}
+            </>
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
