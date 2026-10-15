@@ -77,7 +77,7 @@ export function GenerateSettings({
                     <div className="flex flex-col items-start min-w-0">
                       <span className="text-sm">{m.label}</span>
                       <span className="text-xs text-muted-foreground truncate">
-                        {m.id}
+                        {m.modell}
                       </span>
                     </div>
                     <span className="text-xs font-medium text-primary shrink-0 px-2 py-0.5 rounded-md bg-primary/10">

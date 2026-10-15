@@ -1,4 +1,4 @@
-import { anthropic } from '@ai-sdk/anthropic';
+import { anthropicGateway, gatewayConfigured, CHAT_MODEL, GATEWAY_MISSING_MESSAGE } from '@/lib/gateway';
 import { streamText, convertToModelMessages } from 'ai';
 import {
   ALLOWED_IMAGE_MIME_TYPES,
@@ -225,6 +225,13 @@ export async function POST(req: Request) {
       );
     }
 
+    if (!gatewayConfigured) {
+      return new Response(JSON.stringify({ error: GATEWAY_MISSING_MESSAGE }), {
+        status: 500,
+        headers: { 'Content-Type': 'application/json' },
+      });
+    }
+
     const { messages } = await req.json();
 
     const validationError = validatePayload(messages);
@@ -236,7 +243,7 @@ export async function POST(req: Request) {
     }
 
     const result = streamText({
-      model: anthropic('claude-haiku-4-5-20251001'),
+      model: anthropicGateway()(CHAT_MODEL),
       system: SYSTEM_PROMPT,
       messages: await convertToModelMessages(messages),
     });

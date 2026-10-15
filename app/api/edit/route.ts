@@ -1,14 +1,17 @@
-import { google } from '@ai-sdk/google';
-import { generateText } from 'ai';
+import { generateImage } from 'ai';
 import {
   ALLOWED_EDIT_MODEL_IDS,
-  ALLOWED_IMAGE_SIZES,
   DEFAULT_EDIT_MODEL,
-  DEFAULT_IMAGE_SIZE,
   getModelCost,
+  resolveImageModel,
   type EditCapableModelId,
-  type ImageSize,
 } from '@/lib/models';
+import {
+  openaiGateway,
+  gatewayConfigured,
+  describeGatewayError,
+  GATEWAY_MISSING_MESSAGE,
+} from '@/lib/gateway';
 import { getCurrentUser } from '@/lib/session';
 import { spendCredits, refundCredits } from '@/lib/credits';
 import {
@@ -24,15 +27,9 @@ import {
   base64ByteLength,
 } from '@/lib/validation';
 
-export const maxDuration = 60;
-
-function resolveImageSize(): ImageSize {
-  const envSize = process.env.DEFAULT_IMAGE_SIZE;
-  if (envSize && ALLOWED_IMAGE_SIZES.has(envSize)) {
-    return envSize as ImageSize;
-  }
-  return DEFAULT_IMAGE_SIZE;
-}
+// Sunburst high beim Bearbeiten: 55 s gemessen (15.10.2026). 120 s laut F4 a.
+export const maxDuration = 120;
+const GATEWAY_TIMEOUT_MS = 110_000;
 
 interface ImageRefGallery {
   source: 'gallery';
@@ -51,6 +48,9 @@ export async function POST(req: Request) {
       JSON.stringify({ error: 'Storage nicht konfiguriert (R2 Env-Vars fehlen).' }),
       { status: 500 }
     );
+  }
+  if (!gatewayConfigured) {
+    return new Response(JSON.stringify({ error: GATEWAY_MISSING_MESSAGE }), { status: 500 });
   }
 
   const user = await getCurrentUser();
@@ -107,7 +107,7 @@ export async function POST(req: Request) {
     );
   }
 
-  const imageSize = resolveImageSize();
+  const { modell, quality } = resolveImageModel(chosenModel);
   let credits = spend.remaining;
 
   try {
@@ -122,23 +122,20 @@ export async function POST(req: Request) {
       })
     );
 
-    const result = await generateText({
-      model: google(chosenModel),
+    // Keine `size`: das Ergebnis behält das Seitenverhältnis der Eingabe
+    // (gemessen 15.10.2026: 1536x1024 rein, 1536x1024 raus). PNG und JPEG
+    // gehen ohne Umwandlung durch, der Medientyp wird aus den Bytes erkannt.
+    const result = await generateImage({
+      model: openaiGateway().image(modell),
+      prompt: { images: buffers, text: prompt },
+      maxRetries: 0,
       providerOptions: {
-        google: { imageConfig: { imageSize } },
+        openai: { quality, outputFormat: 'png' },
       },
-      messages: [
-        {
-          role: 'user',
-          content: [
-            ...buffers.map((image) => ({ type: 'image' as const, image })),
-            { type: 'text' as const, text: prompt },
-          ],
-        },
-      ],
+      abortSignal: AbortSignal.timeout(GATEWAY_TIMEOUT_MS),
     });
 
-    const generated = result.files?.filter((f) => f.mediaType?.startsWith('image/')) || [];
+    const generated = result.images ?? [];
 
     if (generated.length === 0) {
       credits = await refundCredits(user.sub, cost);
@@ -167,22 +164,15 @@ export async function POST(req: Request) {
     );
 
     return new Response(
-      JSON.stringify({ images: uploaded, text: result.text, credits }),
+      JSON.stringify({ images: uploaded, text: '', credits }),
       { status: 200, headers: { 'Content-Type': 'application/json' } }
     );
   } catch (error: unknown) {
     console.error('Edit API Error:', error);
     credits = await refundCredits(user.sub, cost);
-    const message = error instanceof Error ? error.message : 'Unknown error';
-    const status = /\b429\b|quota|rate.?limit/i.test(message) ? 429 : 500;
+    const { status, error: text, details } = describeGatewayError(error, 'Bildbearbeitung');
     return new Response(
-      JSON.stringify({
-        error: status === 429
-          ? 'Google API-Kontingent erschöpft. Versuche es später erneut — Credits wurden zurückerstattet.'
-          : 'Fehler bei der Bildbearbeitung',
-        details: message,
-        credits,
-      }),
+      JSON.stringify({ error: text, details, credits }),
       { status, headers: { 'Content-Type': 'application/json' } }
     );
   }

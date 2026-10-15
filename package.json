@@ -11,6 +11,7 @@
   "dependencies": {
     "@ai-sdk/anthropic": "^3.0.69",
     "@ai-sdk/google": "^3.0.63",
+    "@ai-sdk/openai": "^3.0.129",
     "@ai-sdk/react": "^3.0.161",
     "@aws-sdk/client-s3": "^3.1030.0",
     "@aws-sdk/s3-request-presigner": "^3.1030.0",

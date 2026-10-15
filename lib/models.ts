@@ -1,13 +1,34 @@
+// --- Bild-Angebote (GPT Image 2.5 über LiteLLM, ADR 0001) -----------------
+//
+// Die Oberfläche kennt zwei Angebote (Klassen), nicht Modelle: „Schnell“ und
+// „Premium“. Der Modellname steht klein darunter. Welches Modell dahinter
+// läuft, legt `modell` fest; die Umgebung kann es je Angebot überschreiben
+// (MODELL_BILD_SCHNELL, MODELL_BILD_PREMIUM), dann zeigt die Oberfläche weiter
+// den Standardnamen. Preis je Bild hängt an der Stufe (`quality`), nicht am
+// Modell: medium ≈ 1,3 Cent, high ≈ 5,3 Cent (gemessen 15.10.2026).
+
 export const IMAGE_MODELS = [
-  { id: "gemini-2.5-flash-image", label: "Standardmodell", cost: 1 },
-  { id: "gemini-3.1-flash-image-preview", label: "Schnell & Kreativ", cost: 2 },
-  { id: "gemini-3-pro-image-preview", label: "Höchste Qualität", cost: 5 },
+  {
+    id: "schnell",
+    label: "Schnell",
+    modell: "gpt-image-2.5-flare",
+    quality: "medium",
+    cost: 1,
+  },
+  {
+    id: "premium",
+    label: "Premium",
+    modell: "gpt-image-2.5-sunburst",
+    quality: "high",
+    cost: 4,
+  },
 ] as const;
 
 export type ImageModelId = (typeof IMAGE_MODELS)[number]["id"];
 export type ImageModel = (typeof IMAGE_MODELS)[number];
+export type ImageQuality = (typeof IMAGE_MODELS)[number]["quality"];
 
-export const DEFAULT_MODEL: ImageModelId = "gemini-2.5-flash-image";
+export const DEFAULT_MODEL: ImageModelId = "schnell";
 
 /**
  * Credit cost for a single API call with the given model. Covers image +
@@ -25,11 +46,10 @@ export const ALLOWED_MODEL_IDS: ReadonlySet<string> = new Set(
   IMAGE_MODELS.map((m) => m.id)
 );
 
-// Image-to-Image/Editing wird nur von den Gemini-3.x Modellen unterstützt.
-// gemini-2.5-flash-image ist reines Text-to-Image.
+// Beide GPT-Image-Angebote können Bilder bearbeiten (/images/edits).
 export const EDIT_CAPABLE_MODEL_IDS = [
-  "gemini-3.1-flash-image-preview",
-  "gemini-3-pro-image-preview",
+  "schnell",
+  "premium",
 ] as const satisfies readonly ImageModelId[];
 
 export type EditCapableModelId = (typeof EDIT_CAPABLE_MODEL_IDS)[number];
@@ -38,29 +58,57 @@ export const EDIT_CAPABLE_MODELS = IMAGE_MODELS.filter((m) =>
   (EDIT_CAPABLE_MODEL_IDS as readonly string[]).includes(m.id)
 );
 
-export const DEFAULT_EDIT_MODEL: EditCapableModelId =
-  "gemini-3.1-flash-image-preview";
+export const DEFAULT_EDIT_MODEL: EditCapableModelId = "schnell";
 
 export const ALLOWED_EDIT_MODEL_IDS: ReadonlySet<string> = new Set(
   EDIT_CAPABLE_MODEL_IDS
 );
 
-// Gemini Image-Modelle unterstützen 1K, 2K, 4K (kleinere Werte nicht zulässig).
-export const IMAGE_SIZES = [
-  { id: "1K", label: "1K (klein, spart Speicher)" },
-  { id: "2K", label: "2K (mittel)" },
-  { id: "4K", label: "4K (groß)" },
-] as const;
+/** Angebot der Oberfläche → Modellname am Gateway und Qualitätsstufe. */
+export function resolveImageModel(id: ImageModelId): {
+  modell: string;
+  quality: ImageQuality;
+  label: string;
+} {
+  const eintrag = IMAGE_MODELS.find((m) => m.id === id) ?? IMAGE_MODELS[0];
+  const override =
+    id === "premium"
+      ? process.env.MODELL_BILD_PREMIUM
+      : process.env.MODELL_BILD_SCHNELL;
+  return {
+    modell: override || eintrag.modell,
+    quality: eintrag.quality,
+    label: eintrag.label,
+  };
+}
 
-export type ImageSize = (typeof IMAGE_SIZES)[number]["id"];
+// --- Seitenverhältnis → Pixelgröße (F3 a, ADR 0001) -------------------------
+// OpenAI will BREITExHÖHE: Kanten Vielfache von 16, höchstens 3840, Verhältnis
+// bis 3:1. Eine feste Größe je Verhältnis hält Kosten und Dauer berechenbar.
 
-export const DEFAULT_IMAGE_SIZE: ImageSize = "1K";
+export const ASPECT_RATIO_SIZES = {
+  "1:1": "1024x1024",
+  "3:2": "1536x1024",
+  "2:3": "1024x1536",
+  "16:9": "2048x1152",
+  "9:16": "1152x2048",
+  "4:3": "1024x768",
+  "3:4": "768x1024",
+} as const;
 
-export const ALLOWED_IMAGE_SIZES: ReadonlySet<string> = new Set(
-  IMAGE_SIZES.map((s) => s.id)
-);
+export type AspectRatio = keyof typeof ASPECT_RATIO_SIZES;
+export type ImageSize = (typeof ASPECT_RATIO_SIZES)[AspectRatio];
 
-// --- Video Models (Veo 3.1) ---------------------------------------------
+export const DEFAULT_ASPECT_RATIO: AspectRatio = "1:1";
+
+export function sizeForAspectRatio(ratio: unknown): ImageSize {
+  if (typeof ratio === "string" && ratio in ASPECT_RATIO_SIZES) {
+    return ASPECT_RATIO_SIZES[ratio as AspectRatio];
+  }
+  return ASPECT_RATIO_SIZES[DEFAULT_ASPECT_RATIO];
+}
+
+// --- Video Models (Veo 3.1, weiter direkt bei Google) ---------------------
 
 export const VIDEO_MODELS = [
   {

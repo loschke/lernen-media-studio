@@ -73,8 +73,8 @@ export function EditTab({
   const [result, setResult] = useState<GalleryImage | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  // Edit unterstützt nur die 3.x Modelle. Wenn das gespeicherte Modell nicht
-  // edit-fähig ist (z.B. 2.5-flash), automatisch auf 3.1-flash wechseln.
+  // Falls im Browser noch ein altes Modell-Kürzel gespeichert ist (vor der
+  // Umstellung auf Schnell/Premium), auf das Standard-Angebot wechseln.
   useEffect(() => {
     if (!isLoaded) return;
     if (!ALLOWED_EDIT_MODEL_IDS.has(model)) {
