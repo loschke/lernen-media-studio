@@ -166,3 +166,7 @@ Ein Credit entspricht damit überall rund 1,3 Cent (Bilder gemessen, Video aus d
 Bau (nicht committet): `lib/models.ts` `costs` je Dauer und `getVideoCost(modell, dauer)`, `getModelCost` nur noch für Bilder; Startroute bucht nach Dauer; Reiter Video zeigt die Credits im Einstellungs-Knopf („Veo 3.1 Lite · 16:9 · 6s · 25 Credits“), in der Modellliste für die gewählte Dauer und an jedem Dauer-Knopf („4s · 15“); `.env.example` und der Rückfall im Anmelde-Callback auf 500. Nachweise: `npx tsc --noEmit` 0 Fehler, eslint 0 Fehler. **Vercel:** `DEFAULT_CREDITS` dort auf 500 setzen (gilt nur für neue Konten, bestehende behalten ihren Stand).
 
 Commit `e2da29b` auf `main`, gepusht 15.10.2026 nachts. `DEFAULT_CREDITS` in Vercel setzt Rico auf 500.
+
+## Nachtrag 2026-10-15 (Nacht): Google-Guthaben leer, Fehlermeldung ergänzt
+
+Nach dem Löschen der alten `gemini/veo-…`-Einträge meldete das Studio „Fehler bei der Videogenerierung“. Messung: Schlüssel sieht die drei neuen Namen, `/v1/videos` antwortet für alle drei mit 402 von Google, „Your prepayment credits are depleted“. Ursache ist das aufgebrauchte Guthaben bei Google AI Studio hinter dem Gateway-Schlüssel, nicht das Löschen. Rico lädt auf. `describeGatewayError` übersetzt diesen Text jetzt in „Der Anbieter hinter dem KI-Gateway hat kein Guthaben mehr (Google AI Studio)…“ mit Status 402.

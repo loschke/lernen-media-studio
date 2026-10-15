@@ -62,6 +62,17 @@ export function describeGatewayError(
       details: message,
     };
   }
+  if (/prepayment credits|credits are depleted/i.test(message)) {
+    // Gemessen 15.10.2026: Google antwortet 402 „Your prepayment credits are
+    // depleted“, wenn das Guthaben bei AI Studio aufgebraucht ist. Der
+    // Gateway reicht das durch; es ist nicht das Budget des Studio-Schlüssels.
+    return {
+      status: 402,
+      error:
+        "Der Anbieter hinter dem KI-Gateway hat kein Guthaben mehr (Google AI Studio). Credits wurden zurückerstattet, bitte Rico Bescheid geben.",
+      details: message,
+    };
+  }
   if (/budget/i.test(message)) {
     return {
       status: 402,
