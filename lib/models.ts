@@ -108,26 +108,27 @@ export function sizeForAspectRatio(ratio: unknown): ImageSize {
   return ASPECT_RATIO_SIZES[DEFAULT_ASPECT_RATIO];
 }
 
-// --- Video Models (Veo 3.1, weiter direkt bei Google) ---------------------
+// --- Video Models (Veo 3.1 über die Videoschnittstelle des Gateways, ADR 0002)
+// Die Kennungen sind die öffentlichen Modellnamen im LiteLLM. Nur Startbild;
+// das Endbild ist mit Weg b entfallen (Rico, 15.10.2026). Credits bleiben
+// 10 / 20 / 40 (Entscheidungsseite F2), die echten Kosten je Sekunde stehen
+// im Gateway (Lite 0,05 $, Fast 0,10 $, Standard 0,40 $).
 
 export const VIDEO_MODELS = [
   {
     id: "veo-3.1-lite-generate-preview",
     label: "Veo 3.1 Lite",
     cost: 10,
-    supportsEndFrame: false,
   },
   {
     id: "veo-3.1-fast-generate-preview",
     label: "Veo 3.1 Fast",
     cost: 20,
-    supportsEndFrame: true,
   },
   {
     id: "veo-3.1-generate-preview",
     label: "Veo 3.1",
     cost: 40,
-    supportsEndFrame: true,
   },
 ] as const;
 
@@ -140,13 +141,15 @@ export const ALLOWED_VIDEO_MODEL_IDS: ReadonlySet<string> = new Set(
   VIDEO_MODELS.map((m) => m.id)
 );
 
-export function videoSupportsEndFrame(modelId: string): boolean {
-  return VIDEO_MODELS.find((m) => m.id === modelId)?.supportsEndFrame ?? false;
-}
-
 export const VIDEO_ASPECT_RATIOS = ["16:9", "9:16"] as const;
 export type VideoAspectRatio = (typeof VIDEO_ASPECT_RATIOS)[number];
 export const DEFAULT_VIDEO_ASPECT_RATIO: VideoAspectRatio = "16:9";
+
+/** Seitenverhältnis → `size` der Videoschnittstelle (gemessen 15.10.2026: kommt so zurück). */
+export const VIDEO_SIZES: Record<VideoAspectRatio, string> = {
+  "16:9": "1280x720",
+  "9:16": "720x1280",
+};
 
 export const VIDEO_DURATIONS = [4, 6, 8] as const;
 export type VideoDuration = (typeof VIDEO_DURATIONS)[number];

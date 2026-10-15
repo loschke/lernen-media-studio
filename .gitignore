@@ -48,3 +48,4 @@ next-env.d.ts
 # Prüfstand-Bilder bleiben lokal, nur bericht.md wird versioniert
 docs/pruefstand/litellm/*.png
 docs/pruefstand/litellm/*.jpg
+docs/pruefstand/litellm/*.mp4

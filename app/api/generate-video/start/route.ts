@@ -1,4 +1,8 @@
-import { GoogleGenAI } from "@google/genai";
+// Video starten über die Videoschnittstelle des Gateways (ADR 0002, Weg b):
+// POST {MODELL_GATEWAY_URL}/v1/videos, JSON ohne Bild oder Multipart mit
+// `input_reference` als Startbild. Der Gateway reicht an Veo weiter, bucht die
+// Kosten sofort beim Start und gibt eine Vorgangskennung zurück, die die
+// Statusroute abfragt. Kein Google-Schlüssel mehr im Studio.
 import {
   ALLOWED_VIDEO_MODEL_IDS,
   DEFAULT_VIDEO_MODEL,
@@ -6,7 +10,7 @@ import {
   DEFAULT_VIDEO_DURATION,
   VIDEO_ASPECT_RATIOS,
   VIDEO_DURATIONS,
-  videoSupportsEndFrame,
+  VIDEO_SIZES,
   getModelCost,
   type VideoModelId,
   type VideoAspectRatio,
@@ -16,9 +20,17 @@ import { getCurrentUser } from "@/lib/session";
 import { spendCredits, refundCredits } from "@/lib/credits";
 import { fetchImageBuffer, r2Configured } from "@/lib/r2";
 import {
+  gatewayConfigured,
+  gatewayAuthHeaders,
+  gatewayVideoUrl,
+  describeGatewayError,
+  GATEWAY_MISSING_MESSAGE,
+} from "@/lib/gateway";
+import {
   MAX_VIDEO_PROMPT_CHARS,
   MAX_UPLOAD_BYTES,
   base64ByteLength,
+  isValidVideoJobId,
 } from "@/lib/validation";
 
 export const maxDuration = 60;
@@ -37,45 +49,36 @@ type ImageRef = ImageRefGallery | ImageRefUpload;
 async function resolveFrame(
   ref: ImageRef,
   sub: string
-): Promise<{ imageBytes: string; mimeType: string }> {
+): Promise<{ buffer: Buffer; mimeType: string }> {
   if (ref.source === "gallery") {
     const { buffer, mediaType } = await fetchImageBuffer(sub, ref.id);
-    return { imageBytes: buffer.toString("base64"), mimeType: mediaType };
+    return { buffer, mimeType: mediaType };
   }
   const cleaned = ref.data.replace(/^data:image\/\w+;base64,/, "");
   return {
-    imageBytes: cleaned,
+    buffer: Buffer.from(cleaned, "base64"),
     mimeType: ref.mediaType || "image/png",
   };
 }
 
-function resolveApiKey(): string | null {
-  return (
-    process.env.GOOGLE_GENERATIVE_AI_API_KEY ||
-    process.env.GEMINI_API_KEY ||
-    process.env.GOOGLE_API_KEY ||
-    null
-  );
+function json(body: unknown, status: number) {
+  return new Response(JSON.stringify(body), {
+    status,
+    headers: { "Content-Type": "application/json" },
+  });
 }
 
 export async function POST(req: Request) {
   if (!r2Configured) {
-    return new Response(
-      JSON.stringify({ error: "Storage nicht konfiguriert (R2 Env-Vars fehlen)." }),
-      { status: 500 }
-    );
+    return json({ error: "Storage nicht konfiguriert (R2 Env-Vars fehlen)." }, 500);
   }
-  const apiKey = resolveApiKey();
-  if (!apiKey) {
-    return new Response(
-      JSON.stringify({ error: "Gemini API Key nicht konfiguriert." }),
-      { status: 500 }
-    );
+  if (!gatewayConfigured) {
+    return json({ error: GATEWAY_MISSING_MESSAGE }, 500);
   }
 
   const user = await getCurrentUser();
   if (!user) {
-    return new Response(JSON.stringify({ error: "Keine Session — bitte neu anmelden." }), { status: 401 });
+    return json({ error: "Keine Session — bitte neu anmelden." }, 401);
   }
 
   const body = (await req.json()) as {
@@ -84,27 +87,25 @@ export async function POST(req: Request) {
     aspectRatio?: string;
     duration?: number;
     startFrame?: ImageRef;
-    endFrame?: ImageRef;
   };
 
   if (!body.prompt || typeof body.prompt !== "string") {
-    return new Response(JSON.stringify({ error: "Prompt ist erforderlich." }), { status: 400 });
+    return json({ error: "Prompt ist erforderlich." }, 400);
   }
   if (body.prompt.length > MAX_VIDEO_PROMPT_CHARS) {
-    return new Response(
-      JSON.stringify({ error: `Prompt zu lang (max. ${MAX_VIDEO_PROMPT_CHARS} Zeichen).` }),
-      { status: 400 }
+    return json(
+      { error: `Prompt zu lang (max. ${MAX_VIDEO_PROMPT_CHARS} Zeichen).` },
+      400
     );
   }
-  for (const frame of [body.startFrame, body.endFrame]) {
-    if (frame?.source === "upload" && base64ByteLength(frame.data) > MAX_UPLOAD_BYTES) {
-      return new Response(
-        JSON.stringify({
-          error: `Frame zu groß (max. ${Math.round(MAX_UPLOAD_BYTES / 1024 / 1024)} MB).`,
-        }),
-        { status: 400 }
-      );
-    }
+  if (
+    body.startFrame?.source === "upload" &&
+    base64ByteLength(body.startFrame.data) > MAX_UPLOAD_BYTES
+  ) {
+    return json(
+      { error: `Startframe zu groß (max. ${Math.round(MAX_UPLOAD_BYTES / 1024 / 1024)} MB).` },
+      400
+    );
   }
 
   const model: VideoModelId =
@@ -122,86 +123,80 @@ export async function POST(req: Request) {
       ? (body.duration as VideoDuration)
       : DEFAULT_VIDEO_DURATION;
 
-  if (body.endFrame && !videoSupportsEndFrame(model)) {
-    return new Response(
-      JSON.stringify({
-        error:
-          "Das gewählte Modell unterstützt keinen Endframe. Bitte Veo 3.1 Fast oder Veo 3.1 wählen.",
-      }),
-      { status: 400 }
-    );
-  }
-
   const cost = getModelCost(model);
   const spend = await spendCredits(user.sub, cost);
   if (!spend.ok) {
-    return new Response(
-      JSON.stringify({ error: 'insufficient_credits', credits: spend.remaining, cost }),
-      { status: 402, headers: { 'Content-Type': 'application/json' } }
-    );
+    return json({ error: "insufficient_credits", credits: spend.remaining, cost }, 402);
   }
 
   let credits = spend.remaining;
 
   try {
-    const ai = new GoogleGenAI({ apiKey });
-
-    const image = body.startFrame
-      ? await resolveFrame(body.startFrame, user.sub)
-      : undefined;
-    const lastFrame = body.endFrame
-      ? await resolveFrame(body.endFrame, user.sub)
-      : undefined;
-
-    const config: Record<string, unknown> = {
-      aspectRatio,
-      durationSeconds: duration,
-      numberOfVideos: 1,
-    };
-    if (lastFrame) config.lastFrame = lastFrame;
-
-    const op = await ai.models.generateVideos({
+    // Gemessen 15.10.2026 (scripts/veo-videos-pruefstand.mjs): `seconds` als
+    // Text, `size` als BREITExHÖHE, Startbild als Multipart `input_reference`
+    // (PNG und JPEG). Der Gateway antwortet in 1 bis 3 s mit der Kennung.
+    const felder = {
       model,
       prompt: body.prompt,
-      ...(image ? { image } : {}),
-      config,
-    });
+      seconds: String(duration),
+      size: VIDEO_SIZES[aspectRatio],
+    };
+    let init: RequestInit;
+    if (body.startFrame) {
+      const frame = await resolveFrame(body.startFrame, user.sub);
+      const fd = new FormData();
+      for (const [k, v] of Object.entries(felder)) fd.append(k, v);
+      fd.append(
+        "input_reference",
+        new Blob([new Uint8Array(frame.buffer)], { type: frame.mimeType }),
+        `start.${frame.mimeType.split("/")[1] || "png"}`
+      );
+      init = { method: "POST", headers: gatewayAuthHeaders(), body: fd };
+    } else {
+      init = {
+        method: "POST",
+        headers: { ...gatewayAuthHeaders(), "Content-Type": "application/json" },
+        body: JSON.stringify(felder),
+      };
+    }
 
-    return new Response(
-      JSON.stringify({
-        operationName: op.name,
+    const res = await fetch(gatewayVideoUrl(""), {
+      ...init,
+      signal: AbortSignal.timeout(50_000),
+    });
+    const text = await res.text();
+    let data: { id?: string; error?: { message?: string } } = {};
+    try {
+      data = JSON.parse(text);
+    } catch {
+      /* kein JSON, Text landet in der Fehlermeldung */
+    }
+    if (!res.ok) {
+      throw new Error(data.error?.message || `Gateway ${res.status}: ${text.slice(0, 200)}`);
+    }
+    if (!isValidVideoJobId(data.id)) {
+      throw new Error("Gateway hat keine gültige Vorgangskennung geliefert.");
+    }
+
+    return json(
+      {
+        jobId: data.id,
         prompt: body.prompt,
         model,
         aspectRatio,
         duration,
         cost,
         credits,
-      }),
-      { status: 200, headers: { "Content-Type": "application/json" } }
+      },
+      200
     );
   } catch (error: unknown) {
     console.error("Video start error:", error);
     credits = await refundCredits(user.sub, cost);
-    const status = (error as { status?: number; response?: { status?: number } })?.status ??
-      (error as { response?: { status?: number } })?.response?.status;
-    if (status === 429) {
-      return new Response(
-        JSON.stringify({
-          error:
-            "Das Video-Kontingent für heute ist aufgebraucht. Credits wurden zurückerstattet.",
-          credits,
-        }),
-        { status: 429 }
-      );
-    }
-    const message = error instanceof Error ? error.message : "Unknown error";
-    return new Response(
-      JSON.stringify({
-        error: "Fehler beim Starten der Video-Generierung",
-        details: message,
-        credits,
-      }),
-      { status: 500 }
+    const beschrieben = describeGatewayError(error, "Videogenerierung");
+    return json(
+      { error: beschrieben.error, details: beschrieben.details, credits },
+      beschrieben.status
     );
   }
 }

@@ -16,10 +16,7 @@ import { FittedVideo } from "@/components/ui/fitted-video";
 import { VideoSettings } from "./video-settings";
 import { VideoStarters } from "./video-starters";
 import { useVideoSettings } from "@/hooks/useVideoSettings";
-import {
-  getModelCost,
-  videoSupportsEndFrame,
-} from "@/lib/models";
+import { getModelCost } from "@/lib/models";
 import type { GalleryImage } from "@/hooks/useGallery";
 
 type FrameSource =
@@ -67,22 +64,15 @@ export function VideoTab({
   } = useVideoSettings();
 
   const [prompt, setPrompt] = useState("");
+  // Nur ein Startbild: Das Endbild ist mit ADR 0002 (Video über die
+  // Videoschnittstelle des Gateways) entfallen.
   const [startFrame, setStartFrame] = useState<FrameSource | null>(null);
-  const [endFrame, setEndFrame] = useState<FrameSource | null>(null);
   const [isGenerating, setIsGenerating] = useState(false);
   const [progressText, setProgressText] = useState<string>("");
   const [error, setError] = useState("");
   const [result, setResult] = useState<GalleryImage | null>(null);
 
   const startInputRef = useRef<HTMLInputElement>(null);
-  const endInputRef = useRef<HTMLInputElement>(null);
-
-  const supportsEnd = videoSupportsEndFrame(model);
-
-  // Clear endFrame if user switches to Lite
-  useEffect(() => {
-    if (!supportsEnd && endFrame) setEndFrame(null);
-  }, [supportsEnd, endFrame]);
 
   // Accept incoming startFrame from Gallery
   useEffect(() => {
@@ -99,23 +89,14 @@ export function VideoTab({
     onConsumePending();
   }, [pendingStartFrame, onConsumePending]);
 
-  const handleUpload = (
-    e: React.ChangeEvent<HTMLInputElement>,
-    target: "start" | "end"
-  ) => {
+  const handleUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
     const reader = new FileReader();
     reader.onload = () => {
       const dataUrl = reader.result as string;
       const base64 = dataUrl.split(",")[1];
-      const frame: FrameSource = {
-        source: "upload",
-        data: base64,
-        mediaType: file.type,
-      };
-      if (target === "start") setStartFrame(frame);
-      else setEndFrame(frame);
+      setStartFrame({ source: "upload", data: base64, mediaType: file.type });
     };
     reader.readAsDataURL(file);
     e.target.value = "";
@@ -124,14 +105,12 @@ export function VideoTab({
   const handleSelectGalleryAsFrame = (img: GalleryImage) => {
     // Only images work as frames
     if (!img.mediaType.startsWith("image/")) return;
-    const frame: FrameSource = {
+    setStartFrame({
       source: "gallery",
       id: img.id,
       url: img.url,
       mediaType: img.mediaType,
-    };
-    if (!startFrame) setStartFrame(frame);
-    else if (supportsEnd && !endFrame) setEndFrame(frame);
+    });
   };
 
   const handleGenerate = useCallback(async () => {
@@ -151,7 +130,6 @@ export function VideoTab({
           aspectRatio,
           duration,
           startFrame: startFrame ? toImageRef(startFrame) : undefined,
-          endFrame: endFrame ? toImageRef(endFrame) : undefined,
         }),
       });
       const startData = await startRes.json();
@@ -162,10 +140,10 @@ export function VideoTab({
         throw new Error(startData.error || "Start fehlgeschlagen");
       }
 
-      const opName: string = startData.operationName;
-      if (!opName) throw new Error("Keine Operation-ID erhalten");
+      const jobId: string = startData.jobId;
+      if (!jobId) throw new Error("Keine Vorgangskennung erhalten");
 
-      setProgressText("Gemini generiert dein Video…");
+      setProgressText("Veo generiert dein Video…");
 
       let attempts = 0;
       while (true) {
@@ -174,7 +152,7 @@ export function VideoTab({
         const statusRes = await fetch("/api/generate-video/status", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ operationName: opName, prompt }),
+          body: JSON.stringify({ jobId, prompt }),
         });
         const statusData = await statusRes.json();
 
@@ -191,7 +169,7 @@ export function VideoTab({
         }
 
         setProgressText(
-          `Gemini generiert dein Video… (${attempts * (POLL_INTERVAL_MS / 1000)}s)`
+          `Veo generiert dein Video… (${attempts * (POLL_INTERVAL_MS / 1000)}s)`
         );
 
         if (attempts > 60) {
@@ -212,7 +190,6 @@ export function VideoTab({
     aspectRatio,
     duration,
     startFrame,
-    endFrame,
     addVideo,
     setCredits,
   ]);
@@ -220,7 +197,6 @@ export function VideoTab({
   const handleNew = () => {
     setResult(null);
     setStartFrame(null);
-    setEndFrame(null);
     setError("");
   };
 
@@ -308,28 +284,22 @@ export function VideoTab({
         <div className="shrink-0 px-3 sm:px-4 md:px-8 pb-2">
           <div className="max-w-3xl mx-auto">
             <p className="text-xs text-muted-foreground mb-2">
-              Aus Galerie als Frame übernehmen (Startframe zuerst
-              {supportsEnd ? ", dann Endframe" : ""})
+              Aus Galerie als Startframe übernehmen
             </p>
             <div className="flex gap-2 overflow-x-auto no-scrollbar pb-1">
               {imageGalleryItems.map((img) => {
                 const isStart =
                   startFrame?.source === "gallery" && startFrame.id === img.id;
-                const isEnd =
-                  endFrame?.source === "gallery" && endFrame.id === img.id;
-                const slotFilled =
-                  Boolean(startFrame) && (!supportsEnd || Boolean(endFrame));
                 return (
                   <button
                     key={img.id}
                     onClick={() => handleSelectGalleryAsFrame(img)}
-                    disabled={slotFilled && !isStart && !isEnd}
-                    className={`relative shrink-0 rounded-md overflow-hidden border-2 h-14 w-14 transition-all disabled:opacity-40 disabled:cursor-not-allowed ${
-                      isStart || isEnd
+                    className={`relative shrink-0 rounded-md overflow-hidden border-2 h-14 w-14 transition-all ${
+                      isStart
                         ? "border-primary"
                         : "border-transparent hover:border-muted-foreground/30"
                     }`}
-                    title={isStart ? "Startframe" : isEnd ? "Endframe" : ""}
+                    title={isStart ? "Startframe" : "Als Startframe übernehmen"}
                   >
                     <img
                       src={img.url}
@@ -337,9 +307,9 @@ export function VideoTab({
                       loading="lazy"
                       className="w-full h-full object-cover"
                     />
-                    {(isStart || isEnd) && (
+                    {isStart && (
                       <span className="absolute bottom-0 inset-x-0 bg-primary/90 text-[9px] font-semibold text-primary-foreground py-0.5">
-                        {isStart ? "START" : "END"}
+                        START
                       </span>
                     )}
                   </button>
@@ -368,40 +338,11 @@ export function VideoTab({
                 type="file"
                 accept="image/*"
                 className="hidden"
-                onChange={(e) => handleUpload(e, "start")}
+                onChange={handleUpload}
               />
 
-              {/* Arrow */}
-              <span className="text-muted-foreground text-xs">→</span>
-
-              {/* End */}
-              {supportsEnd ? (
-                <>
-                  <FrameSlot
-                    label="Endframe"
-                    frame={endFrame}
-                    onRemove={() => setEndFrame(null)}
-                    onPickClick={() => endInputRef.current?.click()}
-                  />
-                  <input
-                    ref={endInputRef}
-                    type="file"
-                    accept="image/*"
-                    className="hidden"
-                    onChange={(e) => handleUpload(e, "end")}
-                  />
-                </>
-              ) : (
-                <div
-                  className="h-16 w-16 rounded-md border border-dashed border-border/60 flex items-center justify-center text-muted-foreground/60 text-[10px] text-center px-1 leading-tight"
-                  title="Endframe wird nur von Veo 3.1 Fast und Pro unterstützt"
-                >
-                  Endframe nur mit Fast/Pro
-                </div>
-              )}
-
               <p className="text-xs text-muted-foreground ml-auto">
-                Frames optional
+                Startframe optional
               </p>
             </div>
 

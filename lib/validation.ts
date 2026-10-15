@@ -21,16 +21,13 @@ export function base64ByteLength(data: string): number {
 }
 
 /**
- * Validate a Veo operation name so we don't blindly proxy arbitrary IDs to
- * the Gemini API. Format seen in practice:
- *   `models/<model-id>/operations/<opaque-id>`
- * We accept a conservative alphanumeric + `-._/:` charset.
+ * Vorgangskennung der Videoschnittstelle des Gateways (ADR 0002), damit die
+ * Statusroute keine beliebigen Pfade an den Gateway reicht. Gemessen
+ * 15.10.2026: `video_` plus Base64 (etwa 190 Zeichen, enthält Anbieter,
+ * Modell und die Google-Operation).
  */
-export function isValidOperationName(name: unknown): name is string {
-  if (typeof name !== "string") return false;
-  if (name.length === 0 || name.length > 256) return false;
-  if (!/^models\/[A-Za-z0-9._-]+\/operations\/[A-Za-z0-9._-]+$/.test(name)) {
-    return false;
-  }
-  return true;
+export function isValidVideoJobId(id: unknown): id is string {
+  if (typeof id !== "string") return false;
+  if (id.length < 7 || id.length > 1024) return false;
+  return /^video_[A-Za-z0-9+/=_-]+$/.test(id);
 }

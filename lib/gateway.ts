@@ -3,7 +3,8 @@
 // Eine Adresse, ein virtueller Schlüssel je App. Bild und Bearbeitung laufen
 // über das OpenAI-Paket (/v1/images/*), der Chat über das Anthropic-Paket
 // (/v1/messages). Beide Pakete bekommen nur Adresse und Schlüssel umgebogen.
-// Video (Veo) läuft weiter direkt bei Google, der Gateway bedient Google nicht.
+// Video (Veo) läuft über die Videoschnittstelle des Gateways (/v1/videos,
+// ADR 0002), ohne Paket, mit fetch.
 
 import { createOpenAI } from "@ai-sdk/openai";
 import { createAnthropic } from "@ai-sdk/anthropic";
@@ -29,6 +30,16 @@ export function anthropicGateway() {
   return createAnthropic({ baseURL: baseURL(), apiKey: key });
 }
 
+/** Kopf für direkte Aufrufe des Gateways (Video). Schlüssel nie in der Adresse. */
+export function gatewayAuthHeaders(): Record<string, string> {
+  return { Authorization: `Bearer ${key}` };
+}
+
+/** `gatewayVideoUrl("")` ist der Start, `gatewayVideoUrl("/<id>")` der Status, `"/<id>/content"` die Datei. */
+export function gatewayVideoUrl(pfad: string): string {
+  return `${url}/v1/videos${pfad}`;
+}
+
 export const GATEWAY_MISSING_MESSAGE =
   "KI-Gateway nicht konfiguriert (MODELL_GATEWAY_URL und MODELL_GATEWAY_KEY fehlen).";
 
@@ -40,9 +51,17 @@ export const GATEWAY_MISSING_MESSAGE =
  */
 export function describeGatewayError(
   error: unknown,
-  was: "Bildgenerierung" | "Bildbearbeitung"
+  was: "Bildgenerierung" | "Bildbearbeitung" | "Videogenerierung"
 ): { status: number; error: string; details: string } {
   const message = error instanceof Error ? error.message : String(error);
+  if (/not available for this API key|model_access_denied/i.test(message)) {
+    return {
+      status: 500,
+      error:
+        "Das Modell ist beim KI-Gateway nicht freigegeben. Credits wurden zurückerstattet, bitte Rico Bescheid geben.",
+      details: message,
+    };
+  }
   if (/budget/i.test(message)) {
     return {
       status: 402,
