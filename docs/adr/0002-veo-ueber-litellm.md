@@ -164,3 +164,5 @@ Rico im Chat nach dem Abschluss: „dann lass uns 500 Credits geben, da ich die 
 Ein Credit entspricht damit überall rund 1,3 Cent (Bilder gemessen, Video aus den Sekundenpreisen des Gateways; Standard ist im Studio noch nie gelaufen, der Preis 0,40 $/s ist der hinterlegte Wert). Startguthaben 500 Credits, also höchstens 6,60 $ je Person, egal welche Mischung. Vorher: 250 Credits, bei Standard-Video bis 20 $ je Person.
 
 Bau (nicht committet): `lib/models.ts` `costs` je Dauer und `getVideoCost(modell, dauer)`, `getModelCost` nur noch für Bilder; Startroute bucht nach Dauer; Reiter Video zeigt die Credits im Einstellungs-Knopf („Veo 3.1 Lite · 16:9 · 6s · 25 Credits“), in der Modellliste für die gewählte Dauer und an jedem Dauer-Knopf („4s · 15“); `.env.example` und der Rückfall im Anmelde-Callback auf 500. Nachweise: `npx tsc --noEmit` 0 Fehler, eslint 0 Fehler. **Vercel:** `DEFAULT_CREDITS` dort auf 500 setzen (gilt nur für neue Konten, bestehende behalten ihren Stand).
+
+Commit `e2da29b` auf `main`, gepusht 15.10.2026 nachts. `DEFAULT_CREDITS` in Vercel setzt Rico auf 500.

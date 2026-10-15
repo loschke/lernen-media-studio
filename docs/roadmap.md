@@ -13,7 +13,7 @@ hier, bis es eine Seite mit Sammlung `fortschritt` gibt.
 | # | Etappe | Stand |
 |---|---|---|
 | 1 | Studio an LiteLLM: Bilder über GPT Image 2.5, Chat über Haiku 5.5 | laeuft (gepusht 15.10., Commit 6ebcbb2, Prüfung live) |
-| 2 | Video (Veo) über LiteLLM | erledigt (15.10. Nacht, Commits 849225f, 5379d73, 1ac74c4; Prüfstand live S1 bis S6 Funktioniert, Gesamt Go im Chat) |
+| 2 | Video (Veo) über LiteLLM | erledigt (15.10. Nacht, Commits 849225f, 5379d73, 1ac74c4, e2da29b; Prüfstand live S1 bis S6 Funktioniert, Gesamt Go im Chat) |
 
 ## Das Ziel in einem Absatz
 
@@ -131,3 +131,6 @@ Kosten je Zeile, Startframe aus Galerie und Upload (Uploads werden im Browser au
 Commit 1ac74c4). Weiter geht es mit drei Dingen: Rico löscht die alten `gemini/veo-…`-Einträge im LiteLLM; der Reiter
 „Bearbeiten“ bekommt dieselbe Upload-Verkleinerung (Aufgabe vorgeschlagen); nach zwei Wochen werden die Gateway-Kosten
 je Video gegen die Credits 10 / 20 / 40 gehalten (Checkpoint ADR 0002).
+
+Nachtrag Credits (15.10. Nacht, Commit e2da29b): Video-Credits nach Dauer (Lite 15/25/30, Fast 30/45/60,
+Standard 120/180/240), Startguthaben 500, rund 1,3 Cent je Credit überall. Vercel `DEFAULT_CREDITS` = 500 (Rico).
