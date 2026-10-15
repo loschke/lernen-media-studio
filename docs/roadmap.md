@@ -7,13 +7,13 @@
 
 ## Wo wir stehen
 
-Etappe 1 läuft (Entscheidungsseite veröffentlicht, Antworten offen). Stand je Etappe
+Etappe 1 und 2 sind gepusht und live geprüft. Stand je Etappe
 hier, bis es eine Seite mit Sammlung `fortschritt` gibt.
 
 | # | Etappe | Stand |
 |---|---|---|
 | 1 | Studio an LiteLLM: Bilder über GPT Image 2.5, Chat über Haiku 5.5 | laeuft (gepusht 15.10., Commit 6ebcbb2, Prüfung live) |
-| 2 | Video (Veo) über LiteLLM | laeuft (gebaut 15.10. Nacht, Weg b `/v1/videos`, wartet auf Go zum Push, Prüfung live) |
+| 2 | Video (Veo) über LiteLLM | erledigt (15.10. Nacht, Commits 849225f, 5379d73, 1ac74c4; Prüfstand live S1 bis S6 Funktioniert, Gesamt Go im Chat) |
 
 ## Das Ziel in einem Absatz
 
@@ -51,7 +51,7 @@ läuft seit Etappe 2 über die Videoschnittstelle des Gateways, ohne Google-Schl
 | 1 | Entscheidungsseite <https://claude.ai/artifact/12cj27SLikcxKYLQqMEQJX> | `antworten`: alle beantwortet am 15.10.2026, überall Empfehlung |
 | 1 | Prüfstand <https://claude.ai/artifact/MetNG8znw4FMHi993dQU2r> | `ruecklaeufe`: `s1` bis `s8`, `gesamt`. Offen seit 15.10.2026 |
 | 2 | Entscheidungsseite <https://claude.ai/artifact/U6oXjjnWiPKqvBeEeJrDXf> | `antworten`: s1 bis s3 passt, f2 a, f3 a, f1 im Chat („b“), r1 bis r6 ohne Einspruch. Beantwortet 15.10.2026 (Nacht) |
-| 2 | Prüfstand <https://claude.ai/artifact/JukTgULPPPi7g6JGYKsWae> | `ruecklaeufe`: `s1` bis `s6`, `gesamt`. Prüfung live nach dem Push |
+| 2 | Prüfstand <https://claude.ai/artifact/JukTgULPPPi7g6JGYKsWae> | `ruecklaeufe`: s1 bis s6 Funktioniert (15.10.), Gesamt Go im Chat |
 
 ## Startbereit
 
@@ -125,3 +125,9 @@ Spend nach allen Läufen 2,555 $, jede Buchung exakt. Details ADR 0002.
 geprüft (tsc, eslint), nicht committet: beide Videorouten auf `/v1/videos`, Endframe raus, Google-Schlüssel raus.
 Fertig ist die Etappe, wenn Rico den Prüfstand live durchgeht und ein Lite-Video im LiteLLM unter `lernen-media-studio`
 mit Kosten größer null steht. Danach: die alten drei `gemini/veo-…`-Einträge im LiteLLM löschen (Richtung r4).
+
+**Etappe 2 abgeschlossen (15.10. Nacht).** Video läuft live über `/v1/videos` des Gateways, Protokoll mit Modell und
+Kosten je Zeile, Startframe aus Galerie und Upload (Uploads werden im Browser auf Vercels 4,5-MB-Grenze verkleinert,
+Commit 1ac74c4). Weiter geht es mit drei Dingen: Rico löscht die alten `gemini/veo-…`-Einträge im LiteLLM; der Reiter
+„Bearbeiten“ bekommt dieselbe Upload-Verkleinerung (Aufgabe vorgeschlagen); nach zwei Wochen werden die Gateway-Kosten
+je Video gegen die Credits 10 / 20 / 40 gehalten (Checkpoint ADR 0002).

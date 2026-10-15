@@ -144,3 +144,9 @@ Rico hat alle sechs Szenarien live geprüft (Sammlung `ruecklaeufe`): S1 bis S6 
 **Behebung** (`components/video/video-tab.tsx`, nicht committet): Hochgeladene Fotos werden im Browser auf höchstens 2048 px Kante und etwa 3 MB verkleinert (Canvas, JPEG, Qualität absteigend ab 0,9), als Base64 rund 4 MB; Antworten des Servers werden tolerant gelesen, ein 413 erscheint als „Die Anfrage ist zu groß für den Server (höchstens 4,5 MB)“. `npx tsc --noEmit` 0 Fehler, eslint 0 Fehler. Nicht live geprüft, bis gepusht; Szenario für Rico: dasselbe 4,35-MB-JPEG noch einmal als Startframe.
 
 Gleiche Kante im Reiter „Bearbeiten“ (bis drei Uploads je 10 MB im JSON): nicht angefasst, als Folgeaufgabe vorgeschlagen.
+
+## Nachtrag 2026-10-15 (Nacht): Abschluss der Etappe
+
+Upload-Behebung als Commit `1ac74c4` gepusht. Rico hat das 4,35-MB-JPEG live erneut als Startframe geprüft: läuft. Gesamt: Go, im Chat („Gesamt steht auf Go. Schließ die Etappe ab.“); auf der Prüfstand-Seite ist das Gesamt-Dokument nicht gespeichert, der Chat gilt. Etappe 2 ist erledigt: Ein Veo-Video aus dem Live-Studio steht im LiteLLM unter `lernen-media-studio` mit Kosten größer null, kein Google-Schlüssel mehr in Umgebung und Code.
+
+Was Rico noch im Gateway tut (r4): die drei alten Einträge `gemini/veo-3.1-lite-generate-preview`, `gemini/veo-3.1-fast-generate-preview`, `gemini/veo-3.1-generate-preview` löschen und aus der Team-Liste nehmen. Als Nächstes dieselbe Upload-Grenze im Reiter „Bearbeiten“ (Vorschlag liegt als Aufgabe vor), und nach zwei Wochen der Checkpoint: Gateway-Kosten je Video gegen die 10 / 20 / 40 Credits halten.
