@@ -134,3 +134,13 @@ Kennung: `video_` plus Base64 von `litellm:custom_llm_provider:gemini;model_id:�
 ## Nachtrag 2026-10-15 (Nacht): Go, Commit, Push
 
 Rico: „Go: committe und pushe Etappe 2 … Danach gehe ich den Prüfstand live durch.“ Commit `849225f` auf `main`, gepusht am 15.10.2026 nachts. Vercel braucht keine neue Variable. Offen bis zum Abschluss der Etappe: Prüfstand live (<https://claude.ai/artifact/JukTgULPPPi7g6JGYKsWae>, Sammlung `ruecklaeufe`), danach die alten drei `gemini/veo-…`-Einträge im LiteLLM löschen (r4).
+
+## Nachtrag 2026-10-15 (Nacht): Prüfstand live, Rückläufe
+
+Rico hat alle sechs Szenarien live geprüft (Sammlung `ruecklaeufe`): S1 bis S6 „Funktioniert“, Gesamt noch offen. Video läuft im Live-Studio über den Gateway, Lite und Fast, mit Startbild aus Galerie und Upload, das Protokoll zeigt Modell und Kosten (S6). Damit ist das Abnahmekriterium der Etappe erfüllt.
+
+**Fehler aus S4 (Notiz):** Upload eines JPEG mit 4,35 MB als Startframe endete mit „Unexpected token 'R', "Request En"… is not valid JSON“. Ursache: Vercel nimmt höchstens 4,5 MB je Anfrage an; das Bild wird als Base64 im JSON zu 5,8 MB, Vercel antwortet mit dem Text „Request Entity Too Large“ (413), die Oberfläche las ihn als JSON. Der Fehler bestand vor Etappe 2 (die Routen prüfen 10 MB, Vercel 4,5 MB) und betrifft nur Uploads, Galerie-Bilder gehen per Kennung.
+
+**Behebung** (`components/video/video-tab.tsx`, nicht committet): Hochgeladene Fotos werden im Browser auf höchstens 2048 px Kante und etwa 3 MB verkleinert (Canvas, JPEG, Qualität absteigend ab 0,9), als Base64 rund 4 MB; Antworten des Servers werden tolerant gelesen, ein 413 erscheint als „Die Anfrage ist zu groß für den Server (höchstens 4,5 MB)“. `npx tsc --noEmit` 0 Fehler, eslint 0 Fehler. Nicht live geprüft, bis gepusht; Szenario für Rico: dasselbe 4,35-MB-JPEG noch einmal als Startframe.
+
+Gleiche Kante im Reiter „Bearbeiten“ (bis drei Uploads je 10 MB im JSON): nicht angefasst, als Folgeaufgabe vorgeschlagen.
