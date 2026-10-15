@@ -130,3 +130,7 @@ Kennung: `video_` plus Base64 von `litellm:custom_llm_provider:gemini;model_id:�
 `@google/genai` bleibt als Abhängigkeit, weil `scripts/veo-durchleitung-pruefstand.mjs --sdk` (der gemessene Rückweg) es braucht; der Studio-Code importiert es nicht mehr.
 
 **Nachweise:** `npx tsc --noEmit` 0 Fehler; `eslint` auf den geänderten Dateien 0 Fehler, 2 bestehende `<img>`-Warnungen; `npx next build` läuft durch, beide Videorouten im Routenbaum. Kein Lauf gegen einen lokalen Server (keiner lief, Anmeldung nötig); die Felder der Routen sind eins zu eins die gemessenen. Abnahme in der Live-Umgebung über den Prüfstand.
+
+## Nachtrag 2026-10-15 (Nacht): Go, Commit, Push
+
+Rico: „Go: committe und pushe Etappe 2 … Danach gehe ich den Prüfstand live durch.“ Commit `849225f` auf `main`, gepusht am 15.10.2026 nachts. Vercel braucht keine neue Variable. Offen bis zum Abschluss der Etappe: Prüfstand live (<https://claude.ai/artifact/JukTgULPPPi7g6JGYKsWae>, Sammlung `ruecklaeufe`), danach die alten drei `gemini/veo-…`-Einträge im LiteLLM löschen (r4).
