@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useCallback } from "react";
+import { LogOut } from "lucide-react";
 import { useGallery, GalleryImage } from "@/hooks/useGallery";
 
 import { GenerateTab } from "@/components/generate/generate-tab";
@@ -137,6 +138,19 @@ export default function MediaStudio() {
                 {credits}
               </span>
             </div>
+            <span className="h-5 w-px bg-border" />
+            {/* POST statt Link: Prefetch oder fremde Seiten sollen nicht abmelden */}
+            <form method="post" action="/api/auth/logout">
+              <button
+                type="submit"
+                title="Abmelden"
+                aria-label="Abmelden"
+                className="flex items-center gap-1.5 text-foreground/70 hover:text-foreground transition-colors whitespace-nowrap"
+              >
+                <LogOut className="h-4 w-4" />
+                <span className="hidden sm:inline">Abmelden</span>
+              </button>
+            </form>
           </div>
         </div>
 

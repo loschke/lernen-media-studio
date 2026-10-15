@@ -23,7 +23,9 @@ async function handle(req: Request): Promise<Response> {
 
   const origin = new URL(req.url).origin;
   const target = buildEndSessionUrl(idToken, origin) ?? origin;
-  const response = NextResponse.redirect(target);
+  // 303 statt Default 307: Der Button schickt ein POST, der Browser soll dem
+  // Redirect zum End-Session-Endpoint aber per GET folgen.
+  const response = NextResponse.redirect(target, 303);
 
   const clear = {
     httpOnly: true,
