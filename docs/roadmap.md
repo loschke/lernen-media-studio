@@ -12,7 +12,8 @@ hier, bis es eine Seite mit Sammlung `fortschritt` gibt.
 
 | # | Etappe | Stand |
 |---|---|---|
-| 1 | Studio an LiteLLM: Bilder über GPT Image 2.5, Chat über Haiku 5.5 | laeuft (gebaut, im Prüfstand) |
+| 1 | Studio an LiteLLM: Bilder über GPT Image 2.5, Chat über Haiku 5.5 | laeuft (gepusht 15.10., Commit 6ebcbb2, Prüfung live) |
+| 2 | Video (Veo) über LiteLLM | offen |
 
 ## Das Ziel in einem Absatz
 
@@ -38,7 +39,7 @@ bleibt direkt bei Google, bis der Gateway Google bedient.
 
 ## Parkplatz
 
-- Veo über den Gateway. Auslöser: ADR 0084 Stufe 3 in build ist gebaut (Google am Gateway).
+- ~~Veo über den Gateway.~~ Auslöser gezogen am 15.10.2026: Rico hat den Google-Schlüssel aus Vercel entfernt, Video ist live aus. Jetzt Etappe 2.
 - Gemini-Bildmodelle als drittes Angebot. Auslöser: Rico wünscht es auf der Entscheidungsseite (F2).
 - Größenwahl (2K) im Studio. Auslöser: Antwort auf F3.
 
@@ -51,6 +52,7 @@ bleibt direkt bei Google, bis der Gateway Google bedient.
 
 ## Startbereit
 
-Etappe 1 ist gebaut (15.10.2026, nicht committet) und wartet auf Ricos Rückläufe im Prüfstand.
-Danach: Go, Commit, Push, Vercel-Variablen (`MODELL_GATEWAY_URL`, `MODELL_GATEWAY_KEY` setzen,
-`ANTHROPIC_API_KEY` entfernen).
+Etappe 1 ist gepusht (15.10.2026, `6ebcbb2`), Rico prüft live mit dem Prüfstand. Etappe 2 (Veo über
+LiteLLM) braucht zuerst eine Messung: Welche Video-Modelle kennt LiteLLM 1.105 für Google, über
+welchen Endpunkt (`/v1/videos`? Gemini-Durchleitung?), und wie kommt das fertige Video zurück.
+Danach ADR 0002 und Entscheidungsseite.

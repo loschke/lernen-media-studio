@@ -159,3 +159,7 @@ Nachweise:
 - Nicht geprüft in dieser Session: die Oberfläche selbst (Anmeldung nötig). Dafür der Prüfstand für Rico, Adresse in `docs/roadmap.md`.
 - Offen für Rico: `ANTHROPIC_API_KEY` und `DEFAULT_IMAGE_SIZE` aus `.env.local` entfernen (Roadmap-Kriterium 4); in Vercel `MODELL_GATEWAY_URL`, `MODELL_GATEWAY_KEY` setzen und `ANTHROPIC_API_KEY` entfernen, bevor gepusht wird.
 - Geprüft nach Review: Die Oberfläche zeigt bei Fehlern den Text aus `error`, sie verzweigt nicht nach Status 402; der Budget-Fehler des Gateways (402) kollidiert also nicht mit `insufficient_credits`. Der Chat rendert nur `text`-Teile; der leere `thinking`-Block, den Haiku 5.5 über den Gateway voranstellt, bleibt unsichtbar.
+
+## Nachtrag 2026-10-15: Go, Commit, Push
+
+Rico: „es ist grad niemand in der app, bitte commit und push“. Commit `6ebcbb2` auf `main`, gepusht am 15.10.2026 abends. Vercel-Variablen hat Rico selbst gesetzt: `MODELL_GATEWAY_URL`, `MODELL_GATEWAY_KEY`; `ANTHROPIC_API_KEY` entfernt. **Abweichung von der Roadmap:** Rico hat auch `GOOGLE_GENERATIVE_AI_API_KEY` in Vercel gelöscht, Video (Veo) ist live damit außer Betrieb, bis Veo über den Gateway läuft (nächste Etappe, Parkplatz-Auslöser gezogen). Die Prüfung der Oberfläche findet direkt in der Live-Umgebung statt, Prüfstand-Seite in `docs/roadmap.md`.
