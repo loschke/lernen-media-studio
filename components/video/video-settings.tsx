@@ -21,6 +21,7 @@ import {
   VIDEO_MODELS,
   VIDEO_ASPECT_RATIOS,
   VIDEO_DURATIONS,
+  getVideoCost,
   type VideoModelId,
   type VideoAspectRatio,
   type VideoDuration,
@@ -58,7 +59,9 @@ export function VideoSettings({
         >
           <Settings className="h-3.5 w-3.5" />
           <span className="text-foreground/80">{modelLabel}</span>
-          <span className="text-muted-foreground/70">· {aspectRatio} · {duration}s</span>
+          <span className="text-muted-foreground/70">
+            · {aspectRatio} · {duration}s · {getVideoCost(model, duration)} Credits
+          </span>
         </Button>
       </PopoverTrigger>
       <PopoverContent
@@ -89,7 +92,7 @@ export function VideoSettings({
                       </span>
                     </div>
                     <span className="text-xs font-medium text-primary shrink-0 px-2 py-0.5 rounded-md bg-primary/10">
-                      {m.cost} Credits
+                      {getVideoCost(m.id, duration)} Credits
                     </span>
                   </div>
                 </SelectItem>
@@ -147,6 +150,9 @@ export function VideoSettings({
                 className="border border-border data-[state=on]:bg-primary/15 data-[state=on]:border-primary/40 data-[state=on]:text-primary transition-colors text-sm px-3"
               >
                 {d}s
+                <span className="ml-1 text-[10px] opacity-70">
+                  · {getVideoCost(model, d)}
+                </span>
               </ToggleGroupItem>
             ))}
           </ToggleGroup>

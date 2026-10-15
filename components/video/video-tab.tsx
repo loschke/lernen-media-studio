@@ -16,7 +16,7 @@ import { FittedVideo } from "@/components/ui/fitted-video";
 import { VideoSettings } from "./video-settings";
 import { VideoStarters } from "./video-starters";
 import { useVideoSettings } from "@/hooks/useVideoSettings";
-import { getModelCost } from "@/lib/models";
+import { getVideoCost } from "@/lib/models";
 import type { GalleryImage } from "@/hooks/useGallery";
 
 type FrameSource =
@@ -251,7 +251,7 @@ export function VideoTab({
 
   if (!isLoaded) return null;
 
-  const cost = getModelCost(model);
+  const cost = getVideoCost(model, duration);
   const imageGalleryItems = galleryImages.filter((g) =>
     g.mediaType.startsWith("image/")
   );

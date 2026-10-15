@@ -31,15 +31,12 @@ export type ImageQuality = (typeof IMAGE_MODELS)[number]["quality"];
 export const DEFAULT_MODEL: ImageModelId = "schnell";
 
 /**
- * Credit cost for a single API call with the given model. Covers image +
- * video models. Falls back to 1 for unknown models.
+ * Credit cost for a single image call with the given model. Video costs
+ * depend on the duration, see `getVideoCost`. Falls back to 1 for unknown
+ * models.
  */
 export function getModelCost(modelId: string): number {
-  return (
-    IMAGE_MODELS.find((m) => m.id === modelId)?.cost ??
-    VIDEO_MODELS.find((m) => m.id === modelId)?.cost ??
-    1
-  );
+  return IMAGE_MODELS.find((m) => m.id === modelId)?.cost ?? 1;
 }
 
 export const ALLOWED_MODEL_IDS: ReadonlySet<string> = new Set(
@@ -110,25 +107,26 @@ export function sizeForAspectRatio(ratio: unknown): ImageSize {
 
 // --- Video Models (Veo 3.1 über die Videoschnittstelle des Gateways, ADR 0002)
 // Die Kennungen sind die öffentlichen Modellnamen im LiteLLM. Nur Startbild;
-// das Endbild ist mit Weg b entfallen (Rico, 15.10.2026). Credits bleiben
-// 10 / 20 / 40 (Entscheidungsseite F2), die echten Kosten je Sekunde stehen
-// im Gateway (Lite 0,05 $, Fast 0,10 $, Standard 0,40 $).
+// das Endbild ist mit Weg b entfallen (Rico, 15.10.2026). Credits je Dauer
+// (Rico, 15.10. nachts, nach dem Prüfstand): rund 1,3 Cent je Credit wie bei
+// den Bildern, aus den Sekundenpreisen des Gateways (Lite 0,05 $, Fast 0,10 $,
+// Standard 0,40 $ je Sekunde) gerundet.
 
 export const VIDEO_MODELS = [
   {
     id: "veo-3.1-lite-generate-preview",
     label: "Veo 3.1 Lite",
-    cost: 10,
+    costs: { 4: 15, 6: 25, 8: 30 },
   },
   {
     id: "veo-3.1-fast-generate-preview",
     label: "Veo 3.1 Fast",
-    cost: 20,
+    costs: { 4: 30, 6: 45, 8: 60 },
   },
   {
     id: "veo-3.1-generate-preview",
     label: "Veo 3.1",
-    cost: 40,
+    costs: { 4: 120, 6: 180, 8: 240 },
   },
 ] as const;
 
@@ -154,3 +152,9 @@ export const VIDEO_SIZES: Record<VideoAspectRatio, string> = {
 export const VIDEO_DURATIONS = [4, 6, 8] as const;
 export type VideoDuration = (typeof VIDEO_DURATIONS)[number];
 export const DEFAULT_VIDEO_DURATION: VideoDuration = 6;
+
+/** Credits für ein Video mit Modell und Dauer. Unbekanntes Modell: teuerste Stufe. */
+export function getVideoCost(modelId: string, duration: VideoDuration): number {
+  const model = VIDEO_MODELS.find((m) => m.id === modelId);
+  return model ? model.costs[duration] : 240;
+}

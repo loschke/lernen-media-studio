@@ -15,8 +15,8 @@ import {
 
 function defaultCredits(): number {
   const raw = process.env.DEFAULT_CREDITS;
-  const parsed = raw ? Number.parseInt(raw, 10) : 250;
-  return Number.isFinite(parsed) && parsed >= 0 ? parsed : 250;
+  const parsed = raw ? Number.parseInt(raw, 10) : 500;
+  return Number.isFinite(parsed) && parsed >= 0 ? parsed : 500;
 }
 
 function errorRedirect(url: URL, reason: string, detail?: string): NextResponse {

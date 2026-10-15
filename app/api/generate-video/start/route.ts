@@ -11,7 +11,7 @@ import {
   VIDEO_ASPECT_RATIOS,
   VIDEO_DURATIONS,
   VIDEO_SIZES,
-  getModelCost,
+  getVideoCost,
   type VideoModelId,
   type VideoAspectRatio,
   type VideoDuration,
@@ -123,7 +123,7 @@ export async function POST(req: Request) {
       ? (body.duration as VideoDuration)
       : DEFAULT_VIDEO_DURATION;
 
-  const cost = getModelCost(model);
+  const cost = getVideoCost(model, duration);
   const spend = await spendCredits(user.sub, cost);
   if (!spend.ok) {
     return json({ error: "insufficient_credits", credits: spend.remaining, cost }, 402);
