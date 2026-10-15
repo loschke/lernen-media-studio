@@ -33,7 +33,7 @@ function alsBase64(blob: Blob): Promise<string> {
  * ausgegeben; reicht das nicht, wird die Kante halbiert.
  */
 export async function bildFuerUpload(
-  file: File,
+  file: Blob,
   maxBytes: number = REQUEST_IMAGE_BUDGET
 ): Promise<UploadImage> {
   const bitmap = await createImageBitmap(file);

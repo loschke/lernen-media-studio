@@ -26,6 +26,7 @@ import {
   type PromptInputMessage,
 } from "@/components/ai-elements/prompt-input";
 import { MAX_REF_IMAGES, MAX_UPLOAD_BYTES } from "@/lib/validation";
+import { bildFuerUpload, REQUEST_IMAGE_BUDGET } from "@/lib/client-image";
 import { ChatIntents } from "./chat-intents";
 
 const MAX_SIZE_LABEL = `${Math.round(MAX_UPLOAD_BYTES / 1024 / 1024)} MB`;
@@ -133,14 +134,31 @@ export function ChatTab() {
   const [uploadError, setUploadError] = useState<string | null>(null);
   const clearAttachmentsRef = useRef<(() => void) | null>(null);
 
-  const handleSubmit = (message: PromptInputMessage | { text: string }) => {
+  const handleSubmit = async (message: PromptInputMessage | { text: string }) => {
     const text = message.text?.trim() ?? "";
     const files = "files" in message ? message.files ?? [] : [];
     if (!text && files.length === 0) return;
     setUploadError(null);
+    // Anhänge gehen als Base64 im JSON an /api/chat; Vercel nimmt 4,5 MB je
+    // Anfrage an (ADR 0002, Prüfstand S4). Bis zu drei Bilder teilen sich das
+    // Budget und werden im Browser verkleinert, wie in Video und Bearbeiten.
+    let verkleinert = files;
+    try {
+      verkleinert = await Promise.all(
+        files.map(async (f) => {
+          if (!f.mediaType?.startsWith("image/") || !f.url.startsWith("data:")) return f;
+          const blob = await (await fetch(f.url)).blob();
+          const bild = await bildFuerUpload(blob, Math.floor(REQUEST_IMAGE_BUDGET / MAX_REF_IMAGES));
+          return { ...f, mediaType: bild.mediaType, url: `data:${bild.mediaType};base64,${bild.data}` };
+        })
+      );
+    } catch (err: unknown) {
+      setUploadError(err instanceof Error ? err.message : "Bild konnte nicht gelesen werden.");
+      return;
+    }
     sendMessage({
       text,
-      ...(files.length > 0 ? { files } : {}),
+      ...(verkleinert.length > 0 ? { files: verkleinert } : {}),
     });
     setInput("");
   };
