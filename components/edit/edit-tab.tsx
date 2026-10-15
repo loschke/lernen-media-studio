@@ -24,6 +24,7 @@ import {
   getModelCost,
 } from "@/lib/models";
 import type { GalleryImage } from "@/hooks/useGallery";
+import { bildFuerUpload, antwortLesen, REQUEST_IMAGE_BUDGET } from "@/lib/client-image";
 
 const MAX_IMAGES = 3;
 
@@ -120,52 +121,31 @@ export function EditTab({
     }
   };
 
+  // Bis zu drei Uploads teilen sich das Anfrage-Budget (Vercel 4,5 MB, ADR 0002
+  // Prüfstand S4): jedes Bild wird im Browser auf ein Drittel verkleinert.
+  const dateienUebernehmen = (files: FileList) => {
+    Array.from(files)
+      .filter((file) => file.type.startsWith("image/"))
+      .forEach((file) => {
+        if (selectedImages.length >= MAX_IMAGES) return;
+        bildFuerUpload(file, Math.floor(REQUEST_IMAGE_BUDGET / MAX_IMAGES))
+          .then((bild) =>
+            setSelectedImages((prev) => (prev.length >= MAX_IMAGES ? prev : [...prev, bild]))
+          )
+          .catch((err: unknown) =>
+            setError(err instanceof Error ? err.message : "Bild konnte nicht gelesen werden.")
+          );
+      });
+  };
+
   const handleUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const files = e.target.files;
-    if (!files) return;
-
-    Array.from(files).forEach((file) => {
-      if (selectedImages.length >= MAX_IMAGES) return;
-      const reader = new FileReader();
-      reader.onload = () => {
-        const dataUrl = reader.result as string;
-        const base64 = dataUrl.split(",")[1];
-        setSelectedImages((prev) => {
-          if (prev.length >= MAX_IMAGES) return prev;
-          return [
-            ...prev,
-            { source: "upload", data: base64, mediaType: file.type },
-          ];
-        });
-      };
-      reader.readAsDataURL(file);
-    });
-
+    if (e.target.files) dateienUebernehmen(e.target.files);
     if (fileInputRef.current) fileInputRef.current.value = "";
   };
 
   const handleDrop = (e: React.DragEvent) => {
     e.preventDefault();
-    const files = e.dataTransfer.files;
-    if (!files) return;
-
-    Array.from(files).forEach((file) => {
-      if (!file.type.startsWith("image/") || selectedImages.length >= MAX_IMAGES)
-        return;
-      const reader = new FileReader();
-      reader.onload = () => {
-        const dataUrl = reader.result as string;
-        const base64 = dataUrl.split(",")[1];
-        setSelectedImages((prev) => {
-          if (prev.length >= MAX_IMAGES) return prev;
-          return [
-            ...prev,
-            { source: "upload", data: base64, mediaType: file.type },
-          ];
-        });
-      };
-      reader.readAsDataURL(file);
-    });
+    if (e.dataTransfer.files) dateienUebernehmen(e.dataTransfer.files);
   };
 
   const removeSelected = (index: number) => {
@@ -191,18 +171,19 @@ export function EditTab({
         body: JSON.stringify({ prompt, imageRefs, model: editModel }),
       });
 
-      const data = await res.json();
+      const data = await antwortLesen(res);
 
       if (typeof data.credits === "number") {
         setCredits(data.credits);
       }
 
       if (!res.ok) {
-        throw new Error(data.error || "Fehler bei der Bearbeitung");
+        throw new Error(String(data.error || "Fehler bei der Bearbeitung"));
       }
 
-      if (data.images && data.images.length > 0) {
-        const resultImage: GalleryImage = data.images[0];
+      const images = data.images as GalleryImage[] | undefined;
+      if (images && images.length > 0) {
+        const resultImage = images[0];
         setResult(resultImage);
         addImage(resultImage);
       }

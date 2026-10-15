@@ -17,6 +17,7 @@ import { VideoSettings } from "./video-settings";
 import { VideoStarters } from "./video-starters";
 import { useVideoSettings } from "@/hooks/useVideoSettings";
 import { getVideoCost } from "@/lib/models";
+import { bildFuerUpload, antwortLesen } from "@/lib/client-image";
 import type { GalleryImage } from "@/hooks/useGallery";
 
 type FrameSource =
@@ -35,57 +36,6 @@ function toImageRef(f: FrameSource) {
 }
 
 const POLL_INTERVAL_MS = 7000;
-
-// Vercel nimmt höchstens 4,5 MB je Anfrage an und antwortet darüber mit dem
-// Text „Request Entity Too Large“ statt JSON (Prüfstand Etappe 2, S4: ein
-// 4,35-MB-JPEG wurde als Base64 zu 5,8 MB). Darum werden hochgeladene Fotos
-// im Browser auf höchstens 2048 px Kante und etwa 3 MB verkleinert; als
-// Base64 bleiben das rund 4 MB. Veo bekommt davon nichts mit.
-const MAX_FRAME_EDGE = 2048;
-const MAX_FRAME_BYTES = 3 * 1024 * 1024;
-
-async function frameAusDatei(file: File): Promise<FrameSource> {
-  const lesen = (blob: Blob) =>
-    new Promise<string>((resolve, reject) => {
-      const reader = new FileReader();
-      reader.onload = () => resolve((reader.result as string).split(",")[1]);
-      reader.onerror = () => reject(reader.error);
-      reader.readAsDataURL(blob);
-    });
-  const bitmap = await createImageBitmap(file);
-  const scale = Math.min(1, MAX_FRAME_EDGE / Math.max(bitmap.width, bitmap.height));
-  if (scale === 1 && file.size <= MAX_FRAME_BYTES) {
-    bitmap.close();
-    return { source: "upload", data: await lesen(file), mediaType: file.type };
-  }
-  const canvas = document.createElement("canvas");
-  canvas.width = Math.round(bitmap.width * scale);
-  canvas.height = Math.round(bitmap.height * scale);
-  canvas.getContext("2d")?.drawImage(bitmap, 0, 0, canvas.width, canvas.height);
-  bitmap.close();
-  let qualitaet = 0.9;
-  let blob: Blob | null = null;
-  while (qualitaet >= 0.5) {
-    blob = await new Promise<Blob | null>((r) => canvas.toBlob(r, "image/jpeg", qualitaet));
-    if (blob && blob.size <= MAX_FRAME_BYTES) break;
-    qualitaet -= 0.1;
-  }
-  if (!blob) throw new Error("Bild konnte nicht verkleinert werden.");
-  return { source: "upload", data: await lesen(blob), mediaType: "image/jpeg" };
-}
-
-/** Antwort lesen, auch wenn Vercel Text statt JSON schickt (413 bei zu großer Anfrage). */
-async function antwortLesen(res: Response): Promise<Record<string, unknown>> {
-  const text = await res.text();
-  try {
-    return JSON.parse(text);
-  } catch {
-    if (res.status === 413) {
-      return { error: "Die Anfrage ist zu groß für den Server (höchstens 4,5 MB). Bitte ein kleineres Startbild wählen." };
-    }
-    return { error: `Unerwartete Antwort des Servers (${res.status}): ${text.slice(0, 120)}` };
-  }
-}
 
 interface VideoTabProps {
   galleryImages: GalleryImage[];
@@ -144,7 +94,8 @@ export function VideoTab({
     const file = e.target.files?.[0];
     e.target.value = "";
     if (!file) return;
-    frameAusDatei(file)
+    // Ein Startbild je Anfrage, es bekommt das ganze Budget (Prüfstand S4).
+    bildFuerUpload(file)
       .then(setStartFrame)
       .catch((err: unknown) =>
         setError(err instanceof Error ? err.message : "Bild konnte nicht gelesen werden.")

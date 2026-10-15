@@ -170,3 +170,7 @@ Commit `e2da29b` auf `main`, gepusht 15.10.2026 nachts. `DEFAULT_CREDITS` in Ver
 ## Nachtrag 2026-10-15 (Nacht): Google-Guthaben leer, Fehlermeldung ergänzt
 
 Nach dem Löschen der alten `gemini/veo-…`-Einträge meldete das Studio „Fehler bei der Videogenerierung“. Messung: Schlüssel sieht die drei neuen Namen, `/v1/videos` antwortet für alle drei mit 402 von Google, „Your prepayment credits are depleted“. Ursache ist das aufgebrauchte Guthaben bei Google AI Studio hinter dem Gateway-Schlüssel, nicht das Löschen. Rico lädt auf. `describeGatewayError` übersetzt diesen Text jetzt in „Der Anbieter hinter dem KI-Gateway hat kein Guthaben mehr (Google AI Studio)…“ mit Status 402.
+
+## Nachtrag 2026-10-16: Upload-Grenze auch im Reiter Bearbeiten
+
+Rico: „komm lass uns den upload beim bearbeiten noch erledigen“. Die Verkleinerung aus dem Reiter Video liegt jetzt in `lib/client-image.ts` (`bildFuerUpload(file, maxBytes)`, `antwortLesen(res)`, Budget 3 MB je Anfrage vor Base64, Kante 2048 px, JPEG mit sinkender Qualität, bei Bedarf halbe Kante). Der Reiter Video nutzt sie mit dem ganzen Budget, der Reiter Bearbeiten teilt es durch die drei möglichen Bilder (1 MB je Upload), für Dateiwahl und Drag-and-drop gleich; Serverantworten werden tolerant gelesen, ein 413 erscheint als Satz. Galerie-Bilder gehen weiter per Kennung und sind nicht betroffen. Nachweise: `npx tsc --noEmit` 0 Fehler, eslint 0 Fehler. Nicht live geprüft; Szenario für Rico: im Reiter Bearbeiten drei große Fotos (je über 3 MB) hochladen und bearbeiten.
