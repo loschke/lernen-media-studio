@@ -6,6 +6,10 @@ export interface GalleryImage {
   prompt: string;
   timestamp: number;
   mediaType: string;
+  /** Nur Videos seit dem 06.11.2026: Länge in Sekunden. */
+  durationSec?: number;
+  /** Nur Videos: Omni kann daran anknüpfen („Fortsetzen“). */
+  canExtend?: boolean;
 }
 
 export function useGallery() {

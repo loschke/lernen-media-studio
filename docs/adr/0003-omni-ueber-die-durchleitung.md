@@ -87,3 +87,57 @@ Verworfen: direkt zu Google (Schlüssel zurück im Studio, gegen ADR 0002; nur a
 Geprüft: `tsc --noEmit` ohne Fehler, `next build` läuft durch, eslint auf den geänderten Dateien ohne neue Meldungen (der Fehler in `hooks/useVideoSettings.ts` Zeile 31 bestand vorher). Die Anfragen der Routen sind mit denselben Feldern gegen den Gateway gelaufen (Tabelle oben, auch mit Startbild in Galeriegröße).
 
 **Nicht geprüft:** die Routen im laufenden Studio mit Anmeldung, Credits und R2, und die Oberfläche im Browser. Die lokale `.env` zeigt auf `auth.loschke.ai` mit der Live-Rücksprungadresse. Das alte Login-System ist seit dem 02.11.2026 durch Authentik abgelöst, der Dienst antwortet nicht mehr; die Live-Umgebung hat offenbar eine andere Konfiguration (Rico war am 05.11. angemeldet). Lokal ist damit keine Anmeldung möglich. Die Prüfung in der Oberfläche liegt bei Rico nach dem Push.
+
+## Nachtrag 2026-11-05 (Nacht): Go, Commit, Push
+
+Rico: „push“. Commit `2d9564f` auf `main`, Deployment bei Vercel READY. Prüfung in der Oberfläche durch Rico steht aus (Testprompts im Chat).
+
+## Nachtrag 2026-11-06: Video fortsetzen und letztes Bild als Startframe
+
+Anlass (Rico): 15 Sekunden reichen nicht für sinnvolle Szenen. Üblich ist, das letzte Bild eines Videos als Startbild des nächsten zu nehmen; Omni kann Videos außerdem selbst verlängern. Rico will beides im Studio („guter Demo-Charakter, aber auch produktiv“), Go auf den Bauvorschlag im Chat: „Ja, so bauen“.
+
+### Messung (Skript `scripts/omni-fortsetzen-pruefstand.mjs`, Bericht wie oben)
+
+| Fall | Ergebnis |
+|---|---|
+| Fortsetzen über `previous_interaction_id`, 360p 16:9, +4 s | 200, fertig nach 42 s, zurück kommt das ganze Video (8,0 s) |
+| Kette, noch einmal +4 s | fertig nach 63 s, 12,0 s. Übergänge an Einzelbildern geprüft: durchgehend |
+| Dasselbe in 720p, 9:16 | 4 s → 8 s → 12 s, fertig nach 33 / 58 / 75 s, Dateien 3,6 / 5,6 / 7,5 MB |
+| Video als Eingabe (Base64) statt Vorgang | Start 200, nach 11 s `failed`, `errors: [{code: INVALID_ARGUMENT}]`. Passt zu Googles Hinweis: Fortsetzung hochgeladener Videos ist im EWR gesperrt |
+| Verbrauch | Ausgabe nur die neuen Sekunden; dazu das bisherige Video als Eingabe (720p: 23.168 Token beim ersten, 69.504 beim zweiten Schritt, zu 1,50 $ je Million 3,5 und 10 Cent) |
+| Fehlerform | Gescheiterte Vorgänge tragen `errors` (Liste), nicht `error` |
+| R2 | Signierte Adresse mit `Origin`-Kopf: kein `access-control-allow-origin`. Der Bucket hat keine CORS-Regel; der Schlüssel des Studios darf sie weder lesen noch setzen |
+
+`duration` ist beim Fortsetzen die angehängte Länge (3 bis 10 s), Obergrenze 30 s gesamt. `task: extend` war nicht nötig.
+
+### Entscheidung
+
+- **„Fortsetzen“** am fertigen Video und an Videos in der Bibliothek. Der Server knüpft über `previous_interaction_id` an; die Kennung liest er aus den Metadaten des Videos in R2, nie aus der Anfrage. Wählbar 4, 6, 8, 10 s, solange die Gesamtlänge unter 30 s bleibt. Credits wie ein neues Video dieser Länge (20 / 30 / 45 / 55). Das verlängerte Video wird ein neuer Eintrag, das alte bleibt.
+- **„Letztes Bild als Startframe“** an denselben Stellen, im Browser: Video holen, ans Ende springen, Bild auf eine Zeichenfläche, als JPEG ins Startframe-Feld. Kostet nichts, geht mit jedem Video.
+- Metadaten eines Videos bekommen `interactionId`, `durationSec` (aus dem MP4-Kopf gelesen, `lib/mp4.ts`) und `aspectRatio`. Die Oberfläche bekommt nur `durationSec` und `canExtend`.
+
+### Preis & Konsequenzen
+
+- Fortsetzen geht nur für Videos, die seit diesem Bau entstanden sind (ältere haben keine Kennung), und nur 55 Tage lang (Googles Aufbewahrung). Danach verschwindet der Knopf.
+- **„Letztes Bild als Startframe“ braucht eine CORS-Regel am R2-Bucket** (GET und HEAD für `https://studio.lernen.diy` und `http://localhost:3001`). Ohne sie meldet der Knopf „Am R2-Bucket fehlt die CORS-Regel“. Rico setzt sie bei Cloudflare.
+- Die Credits decken beim Fortsetzen die Eingabekosten nicht mit ab: In 720p kostet der zweite Schritt einer Kette rund 0,38 $ statt 0,28 $, längere Ketten entsprechend mehr. Für ein Seminar-Werkzeug hingenommen (Vorschlag, nicht von Rico einzeln bestätigt).
+- Der Prompt eines verlängerten Videos in der Bibliothek ist der Prompt der Fortsetzung, nicht die ganze Kette.
+- Scheitert ein Video nach dem Start, steht jetzt Googles Grund in der Meldung (`errors[0].message`). Die Credits bleiben wie bisher weg.
+
+### Bau
+
+| Datei | Was |
+|---|---|
+| `lib/mp4.ts` | neu: Länge aus `moov`/`mvhd` |
+| `lib/r2.ts` | Metadaten `interactionId`, `durationSec`, `aspectRatio`; `readMeta` exportiert; `canExtendVideo`; Liste liefert `durationSec` und `canExtend` |
+| `lib/models.ts` | `VIDEO_EXTEND_DURATIONS`, `VIDEO_MAX_TOTAL_SECONDS`, `VIDEO_EXTEND_MAX_AGE_DAYS`, `extendDurationsFor` |
+| `lib/validation.ts` | `isValidGalleryId` |
+| `lib/client-image.ts` | `letztesBildAusVideo` |
+| `app/api/generate-video/start/route.ts` | `extendFrom: { id }`: Prüfung vor dem Credit-Abzug, dann `previous_interaction_id` |
+| `app/api/generate-video/status/route.ts` | `errors[]` lesen; Länge, Kennung und Seitenverhältnis in die Metadaten |
+| `components/video/video-tab.tsx`, `video-settings.tsx` | Fortsetzen-Zustand mit eigenem Kopf, Längen und Beschriftungen; Knöpfe „Fortsetzen“ und „Letztes Bild als Startframe“ am Ergebnis |
+| `components/gallery/gallery-view.tsx`, `app/app/page.tsx` | dieselben zwei Knöpfe an Videos in der Bibliothek (Kachel und Großansicht), Übergabe an den Video-Reiter |
+
+Geprüft: `tsc --noEmit` und `next build` ohne Fehler, eslint auf den geänderten Dateien ohne Fehler. `mp4DurationSeconds` gegen neun Testvideos (3,0 bis 15,0 s richtig) mit Gegenproben (PNG, abgeschnittene Datei, leer: `null`). `letztesBildAusVideo` in Chrome (agent-browser, lokale Testseite mit dem übersetzten Modul): 640×360 und 720×1280 richtig, Bild deckungsgleich mit dem letzten Bild aus ffmpeg; fremde Herkunft ohne CORS und 404 geben die vorgesehenen Meldungen. Die Felder der Fortsetzung sind so gegen den Gateway gelaufen, wie die Startroute sie schickt.
+
+**Nicht geprüft:** beide Knöpfe im laufenden Studio (lokal weiter keine Anmeldung möglich), die Oberfläche im Browser, und „Letztes Bild“ gegen R2, solange die CORS-Regel fehlt. Auch nicht gelaufen: eine Kette bis an die 30 s.

@@ -65,6 +65,66 @@ export async function bildFuerUpload(
   }
 }
 
+function warteAuf(video: HTMLVideoElement, ereignis: string): Promise<void> {
+  return new Promise((resolve, reject) => {
+    const fertig = () => { aufraeumen(); resolve(); };
+    const fehler = () => { aufraeumen(); reject(new Error("Das Video konnte nicht gelesen werden.")); };
+    const aufraeumen = () => {
+      video.removeEventListener(ereignis, fertig);
+      video.removeEventListener("error", fehler);
+    };
+    video.addEventListener(ereignis, fertig, { once: true });
+    video.addEventListener("error", fehler, { once: true });
+  });
+}
+
+/**
+ * Letztes Bild eines Videos als Upload-Bild, für „Letztes Bild als Startframe“.
+ * Das Video wird als Ganzes geholt (wenige MB) und aus dem Speicher des
+ * Browsers gelesen: So sind die Pixel lesbar, und ein ohne CORS
+ * zwischengespeichertes Video stört nicht. Voraussetzung ist die CORS-Regel
+ * am R2-Bucket (ADR 0003, Nachtrag 06.11.2026).
+ */
+export async function letztesBildAusVideo(url: string): Promise<UploadImage> {
+  let res: Response;
+  try {
+    res = await fetch(url, { cache: "no-store" });
+  } catch {
+    throw new Error(
+      "Der Speicher gibt das Video nicht für den Browser frei. Am R2-Bucket fehlt die CORS-Regel, bitte Rico Bescheid geben."
+    );
+  }
+  if (!res.ok) {
+    throw new Error(`Das Video konnte nicht geladen werden (${res.status}). Lade die Seite neu und versuche es noch einmal.`);
+  }
+  const objectUrl = URL.createObjectURL(await res.blob());
+  const video = document.createElement("video");
+  try {
+    video.muted = true;
+    video.playsInline = true;
+    video.preload = "auto";
+    const geladen = warteAuf(video, "loadeddata");
+    video.src = objectUrl;
+    await geladen;
+    // Die Tonspur ist oft etwas länger als das Bild. Knapp vor dem Ende steht
+    // das letzte Bild.
+    const gesprungen = warteAuf(video, "seeked");
+    video.currentTime = Math.max(0, video.duration - 0.05);
+    await gesprungen;
+    const canvas = document.createElement("canvas");
+    canvas.width = video.videoWidth;
+    canvas.height = video.videoHeight;
+    canvas.getContext("2d")?.drawImage(video, 0, 0, canvas.width, canvas.height);
+    const blob = await new Promise<Blob | null>((r) => canvas.toBlob(r, "image/jpeg", 0.92));
+    if (!blob || !canvas.width) throw new Error("Aus dem Video ließ sich kein Bild lesen.");
+    return { source: "upload", data: await alsBase64(blob), mediaType: "image/jpeg" };
+  } finally {
+    video.removeAttribute("src");
+    video.load();
+    URL.revokeObjectURL(objectUrl);
+  }
+}
+
 /** Antwort einer Route lesen, auch wenn Vercel Text statt JSON schickt (413). */
 export async function antwortLesen(res: Response): Promise<Record<string, unknown>> {
   const text = await res.text();

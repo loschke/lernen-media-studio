@@ -11,6 +11,7 @@ import {
   GATEWAY_MISSING_MESSAGE,
 } from "@/lib/gateway";
 import { isValidVideoJobId, MAX_VIDEO_PROMPT_CHARS } from "@/lib/validation";
+import { mp4DurationSeconds } from "@/lib/mp4";
 
 export const maxDuration = 60;
 
@@ -68,6 +69,9 @@ export async function POST(req: Request) {
     const job = (await statusRes.json()) as {
       status?: string;
       error?: { message?: string } | null;
+      // Gemessen 06.11.2026: Ein gescheiterter Vorgang trägt `errors` (Liste).
+      errors?: { message?: string; code?: string }[] | null;
+      response_format?: { aspect_ratio?: string } | null;
       steps?: {
         type?: string;
         content?: { type?: string; data?: string; text?: string }[];
@@ -75,8 +79,14 @@ export async function POST(req: Request) {
     };
 
     if (job.status === "failed" || job.status === "cancelled") {
+      const grund = job.errors?.[0]?.message || job.error?.message;
       return json(
-        { done: true, error: job.error?.message || "Video-Generierung fehlgeschlagen" },
+        {
+          done: true,
+          error: grund
+            ? `Video-Generierung fehlgeschlagen: ${grund.slice(0, 300)}`
+            : "Video-Generierung fehlgeschlagen",
+        },
         200
       );
     }
@@ -107,16 +117,26 @@ export async function POST(req: Request) {
     const id = crypto.randomUUID();
     const mediaType = "video/mp4";
     const timestamp = Date.now();
+    // Länge aus der Datei (nach einer Fortsetzung ist es das ganze Video),
+    // Kennung und Seitenverhältnis des Vorgangs für „Fortsetzen“.
+    const sekunden = mp4DurationSeconds(buffer);
+    const durationSec = sekunden ? Math.round(sekunden) : undefined;
     await uploadMedia(sessionId, id, buffer, {
       prompt,
       timestamp,
       mediaType,
       ext: "mp4",
+      interactionId: jobId,
+      durationSec,
+      aspectRatio: job.response_format?.aspect_ratio,
     });
     const url = await getMediaUrl(sessionId, id, "mp4");
 
     return json(
-      { done: true, video: { id, url, mediaType, prompt, timestamp } },
+      {
+        done: true,
+        video: { id, url, mediaType, prompt, timestamp, durationSec, canExtend: true },
+      },
       200
     );
   } catch (error: unknown) {

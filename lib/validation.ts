@@ -26,6 +26,11 @@ export function base64ByteLength(data: string): number {
  * URL-sicheres Base64, 70 Zeichen. Erlaubt sind nur Zeichen, die in einem
  * Pfadabschnitt nichts anrichten.
  */
+/** Kennung eines Galerie-Eintrags (`crypto.randomUUID()`), bevor sie in einen Speicherpfad wandert. */
+export function isValidGalleryId(id: unknown): id is string {
+  return typeof id === "string" && /^[A-Za-z0-9-]{8,64}$/.test(id);
+}
+
 export function isValidVideoJobId(id: unknown): id is string {
   if (typeof id !== "string") return false;
   return /^[A-Za-z0-9_-]{10,512}$/.test(id);

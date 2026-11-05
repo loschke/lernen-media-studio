@@ -6,7 +6,7 @@ import { useGallery, GalleryImage } from "@/hooks/useGallery";
 
 import { GenerateTab } from "@/components/generate/generate-tab";
 import { EditTab } from "@/components/edit/edit-tab";
-import { VideoTab } from "@/components/video/video-tab";
+import { VideoTab, type VideoFollowUp } from "@/components/video/video-tab";
 import { ChatTab } from "@/components/chat/chat-tab";
 import { GalleryView } from "@/components/gallery/gallery-view";
 
@@ -43,6 +43,9 @@ export default function MediaStudio() {
   );
   const [pendingVideoStartFrame, setPendingVideoStartFrame] =
     useState<GalleryImage | null>(null);
+  // Aus der Bibliothek: ein Video fortsetzen oder sein letztes Bild als Startframe nehmen.
+  const [pendingVideoAction, setPendingVideoAction] =
+    useState<VideoFollowUp | null>(null);
 
   const handleDownload = async (img: GalleryImage) => {
     try {
@@ -70,6 +73,14 @@ export default function MediaStudio() {
     setPendingVideoStartFrame(img);
     setMode("video");
   };
+
+  const handleVideoFollowUp = (kind: VideoFollowUp["kind"], item: GalleryImage) => {
+    setPendingVideoAction({ kind, item });
+    setMode("video");
+  };
+  const handleConsumePendingVideoAction = useCallback(() => {
+    setPendingVideoAction(null);
+  }, []);
 
   const handleConsumePendingEdit = useCallback(() => {
     setPendingEditImage(null);
@@ -205,6 +216,8 @@ export default function MediaStudio() {
             setCredits={setCredits}
             pendingStartFrame={pendingVideoStartFrame}
             onConsumePending={handleConsumePendingVideo}
+            pendingAction={pendingVideoAction}
+            onConsumePendingAction={handleConsumePendingVideoAction}
           />
         )}
         {mode === "chat" && <ChatTab />}
@@ -215,6 +228,7 @@ export default function MediaStudio() {
             onRemove={removeImage}
             onLoadIntoEdit={handleLoadIntoEdit}
             onLoadIntoVideo={handleLoadIntoVideo}
+            onVideoFollowUp={handleVideoFollowUp}
           />
         )}
       </main>

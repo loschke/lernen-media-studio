@@ -3,6 +3,11 @@
 // API mit Gemini Omni Flash. `background: true` gibt sofort eine
 // Vorgangskennung zurück, die die Statusroute abfragt. Das Startbild geht als
 // Bild-Eingabe vor dem Prompt mit. Kein Google-Schlüssel im Studio.
+//
+// Fortsetzen (Nachtrag 06.11.2026): Mit `extendFrom` knüpft die Anfrage über
+// `previous_interaction_id` an den Vorgang eines Videos aus der Galerie an.
+// Die Kennung liest der Server aus den Metadaten des Videos, nie aus der
+// Anfrage. Omni gibt dann das ganze, verlängerte Video zurück.
 import {
   ALLOWED_VIDEO_MODEL_IDS,
   DEFAULT_VIDEO_MODEL,
@@ -10,7 +15,9 @@ import {
   DEFAULT_VIDEO_DURATION,
   VIDEO_ASPECT_RATIOS,
   VIDEO_DURATIONS,
+  VIDEO_MAX_TOTAL_SECONDS,
   VIDEO_RESOLUTION,
+  extendDurationsFor,
   getVideoCost,
   resolveVideoModel,
   type VideoModelId,
@@ -19,7 +26,7 @@ import {
 } from "@/lib/models";
 import { getCurrentUser } from "@/lib/session";
 import { spendCredits, refundCredits } from "@/lib/credits";
-import { fetchImageBuffer, r2Configured } from "@/lib/r2";
+import { fetchImageBuffer, readMeta, canExtendVideo, r2Configured } from "@/lib/r2";
 import {
   gatewayConfigured,
   gatewayGoogleHeaders,
@@ -32,6 +39,7 @@ import {
   MAX_UPLOAD_BYTES,
   base64ByteLength,
   isValidVideoJobId,
+  isValidGalleryId,
 } from "@/lib/validation";
 
 export const maxDuration = 60;
@@ -88,6 +96,7 @@ export async function POST(req: Request) {
     aspectRatio?: string;
     duration?: number;
     startFrame?: ImageRef;
+    extendFrom?: { id?: string };
   };
 
   if (!body.prompt || typeof body.prompt !== "string") {
@@ -124,6 +133,32 @@ export async function POST(req: Request) {
       ? (body.duration as VideoDuration)
       : DEFAULT_VIDEO_DURATION;
 
+  // Fortsetzen: alles prüfen, bevor Credits abgehen.
+  let fortsetzen: { interactionId: string; aspectRatio?: string } | null = null;
+  if (body.extendFrom) {
+    const id = body.extendFrom.id;
+    const meta = isValidGalleryId(id) ? await readMeta(user.sub, id) : null;
+    if (!meta || !meta.interactionId || !canExtendVideo(meta)) {
+      return json(
+        {
+          error:
+            "Dieses Video lässt sich nicht fortsetzen. Das geht nur mit Videos, die hier seit dem 06.11.2026 entstanden und jünger als 55 Tage sind.",
+        },
+        400
+      );
+    }
+    const bisher = meta.durationSec ?? 0;
+    if (!extendDurationsFor(bisher).includes(duration)) {
+      return json(
+        {
+          error: `Diese Länge geht hier nicht. Ein Video wird um 4 bis 10 Sekunden verlängert und insgesamt höchstens ${VIDEO_MAX_TOTAL_SECONDS} Sekunden lang (bisher ${bisher}).`,
+        },
+        400
+      );
+    }
+    fortsetzen = { interactionId: meta.interactionId, aspectRatio: meta.aspectRatio };
+  }
+
   const cost = getVideoCost(model, duration);
   const spend = await spendCredits(user.sub, cost);
   if (!spend.ok) {
@@ -138,8 +173,11 @@ export async function POST(req: Request) {
     // Startbild als Bild-Eingabe mit Base64 (wird zum ersten Bild, auf das
     // Zielformat beschnitten). Der Gateway antwortet in rund 2 s mit der
     // Kennung. `background` braucht `store: true`.
+    // Gemessen 06.11.2026 (scripts/omni-fortsetzen-pruefstand.mjs): Mit
+    // `previous_interaction_id` ist `duration` die angehängte Länge, zurück
+    // kommt das ganze Video. Ein Startbild gibt es beim Fortsetzen nicht.
     let input: unknown = body.prompt;
-    if (body.startFrame) {
+    if (body.startFrame && !fortsetzen) {
       const frame = await resolveFrame(body.startFrame, user.sub);
       input = [
         { type: "image", data: frame.buffer.toString("base64"), mime_type: frame.mimeType },
@@ -152,10 +190,12 @@ export async function POST(req: Request) {
       headers: { ...gatewayGoogleHeaders(), "Content-Type": "application/json" },
       body: JSON.stringify({
         model: resolveVideoModel(model),
+        ...(fortsetzen ? { previous_interaction_id: fortsetzen.interactionId } : {}),
         input,
         response_format: {
           type: "video",
-          aspect_ratio: aspectRatio,
+          // Fehlt das gemerkte Verhältnis, gilt das der Oberfläche (sonst nähme Google 16:9).
+          aspect_ratio: fortsetzen?.aspectRatio ?? aspectRatio,
           resolution: VIDEO_RESOLUTION,
           duration: `${duration}s`,
         },

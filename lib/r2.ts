@@ -1,5 +1,6 @@
 import { S3Client, PutObjectCommand, GetObjectCommand, DeleteObjectCommand, ListObjectsV2Command } from "@aws-sdk/client-s3";
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
+import { VIDEO_EXTEND_MAX_AGE_DAYS } from "@/lib/models";
 
 const accountId = process.env.R2_ACCOUNT_ID;
 const accessKeyId = process.env.R2_ACCESS_KEY_ID;
@@ -32,6 +33,16 @@ export interface MediaMetadata {
   mediaType: string;
   /** File extension without dot, e.g. "png" or "mp4". Older entries may omit this. */
   ext?: string;
+  /**
+   * Nur Videos seit dem 06.11.2026: Kennung des Vorgangs bei Google, an den
+   * „Fortsetzen“ anknüpft. Bleibt auf dem Server, die Oberfläche bekommt nur
+   * `canExtend`.
+   */
+  interactionId?: string;
+  /** Nur Videos: Länge in ganzen Sekunden, aus der Datei gelesen. */
+  durationSec?: number;
+  /** Nur Videos: Seitenverhältnis des Vorgangs, für die Fortsetzung. */
+  aspectRatio?: string;
 }
 
 // Back-compat alias
@@ -98,7 +109,7 @@ export async function uploadImage(
   return uploadMedia(sessionId, id, imageBuffer, metadata);
 }
 
-async function readMeta(
+export async function readMeta(
   sessionId: string,
   id: string
 ): Promise<MediaMetadata | null> {
@@ -206,6 +217,15 @@ interface GalleryEntry {
   prompt: string;
   timestamp: number;
   mediaType: string;
+  durationSec?: number;
+  canExtend?: boolean;
+}
+
+/** Fortsetzbar ist ein Video, dessen Vorgang das Studio kennt und den Google noch hält. */
+export function canExtendVideo(meta: MediaMetadata): boolean {
+  if (!meta.interactionId || !meta.mediaType.startsWith("video/")) return false;
+  const alterTage = (Date.now() - meta.timestamp) / 86_400_000;
+  return alterTage < VIDEO_EXTEND_MAX_AGE_DAYS;
 }
 
 /**
@@ -244,6 +264,8 @@ export async function listGallery(sessionId: string): Promise<GalleryEntry[]> {
           prompt: meta.prompt,
           timestamp: meta.timestamp,
           mediaType: meta.mediaType,
+          durationSec: meta.durationSec,
+          canExtend: canExtendVideo(meta),
         };
       } catch {
         return null;

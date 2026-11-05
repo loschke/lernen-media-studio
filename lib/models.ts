@@ -147,6 +147,20 @@ export const VIDEO_DURATIONS = [4, 6, 8, 10, 15] as const;
 export type VideoDuration = (typeof VIDEO_DURATIONS)[number];
 export const DEFAULT_VIDEO_DURATION: VideoDuration = 6;
 
+// --- Video fortsetzen (ADR 0003, Nachtrag 06.11.2026) ----------------------
+// Omni hängt an ein eigenes Video 3 bis 10 s an und gibt das ganze Video
+// zurück, höchstens 30 s. Die angehängten Sekunden kosten dieselben Credits
+// wie ein neues Video dieser Länge. Google hält gespeicherte Vorgänge 55 Tage.
+
+export const VIDEO_EXTEND_DURATIONS = [4, 6, 8, 10] as const satisfies readonly VideoDuration[];
+export const VIDEO_MAX_TOTAL_SECONDS = 30;
+export const VIDEO_EXTEND_MAX_AGE_DAYS = 55;
+
+/** Anhängbare Längen für ein Video der Länge `bisher` (Sekunden). Leer: nicht fortsetzbar. */
+export function extendDurationsFor(bisher: number): VideoDuration[] {
+  return VIDEO_EXTEND_DURATIONS.filter((d) => bisher + d <= VIDEO_MAX_TOTAL_SECONDS);
+}
+
 /** Credits für ein Video mit Modell und Dauer. Unbekanntes Modell: teuerste Stufe. */
 export function getVideoCost(modelId: string, duration: VideoDuration): number {
   const model = VIDEO_MODELS.find((m) => m.id === modelId);

@@ -34,6 +34,9 @@ interface VideoSettingsProps {
   onModelChange: (value: VideoModelId) => void;
   onAspectRatioChange: (value: VideoAspectRatio) => void;
   onDurationChange: (value: VideoDuration) => void;
+  /** Beim Fortsetzen: nur diese Längen, und das Seitenverhältnis steht fest. */
+  durations?: readonly VideoDuration[];
+  extending?: boolean;
 }
 
 export function VideoSettings({
@@ -43,6 +46,8 @@ export function VideoSettings({
   onModelChange,
   onAspectRatioChange,
   onDurationChange,
+  durations = VIDEO_DURATIONS,
+  extending = false,
 }: VideoSettingsProps) {
   const currentModel = VIDEO_MODELS.find((m) => m.id === model);
   const modelLabel = currentModel?.label ?? "Modell";
@@ -60,7 +65,8 @@ export function VideoSettings({
           <Settings className="h-3.5 w-3.5" />
           <span className="text-foreground/80">{modelLabel}</span>
           <span className="text-muted-foreground/70">
-            · {aspectRatio} · {duration}s · {getVideoCost(model, duration)} Credits
+            {extending ? " · +" : ` · ${aspectRatio} · `}
+            {duration}s · {getVideoCost(model, duration)} Credits
           </span>
         </Button>
       </PopoverTrigger>
@@ -101,9 +107,9 @@ export function VideoSettings({
           </Select>
         </div>
 
-        <Separator />
+        {!extending && <Separator />}
 
-        <div className="space-y-3">
+        <div className={extending ? "hidden" : "space-y-3"}>
           <Label className="text-sm font-medium text-muted-foreground">
             Seitenverhältnis
           </Label>
@@ -130,7 +136,7 @@ export function VideoSettings({
 
         <div className="space-y-3">
           <Label className="text-sm font-medium text-muted-foreground">
-            Dauer
+            {extending ? "Verlängern um" : "Dauer"}
           </Label>
           <ToggleGroup
             type="single"
@@ -142,7 +148,7 @@ export function VideoSettings({
             }}
             className="justify-start gap-1.5 flex-wrap"
           >
-            {VIDEO_DURATIONS.map((d) => (
+            {durations.map((d) => (
               <ToggleGroupItem
                 key={d}
                 value={String(d)}

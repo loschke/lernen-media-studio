@@ -14,7 +14,7 @@ hier, bis es eine Seite mit Sammlung `fortschritt` gibt.
 |---|---|---|
 | 1 | Studio an LiteLLM: Bilder über GPT Image 2.5, Chat über Haiku 5.5 | laeuft (gepusht 15.10., Commit 6ebcbb2, Prüfung live) |
 | 2 | Video (Veo) über LiteLLM | erledigt (15.10. Nacht, Commits 849225f, 5379d73, 1ac74c4, e2da29b; Prüfstand live S1 bis S6 Funktioniert, Gesamt Go im Chat). Seit 22.10.2026 außer Betrieb: Google hat die Veo-3.1-Previews abgeschaltet |
-| 3 | Video mit Gemini Omni Flash über die Gemini-Durchleitung | laeuft (05.11.2026 gemessen und gebaut, nicht committet; Prüfung in der Oberfläche steht aus) |
+| 3 | Video mit Gemini Omni Flash über die Gemini-Durchleitung | laeuft (05.11.2026 gepusht, Commit 2d9564f; 06.11. dazu „Fortsetzen“ und „Letztes Bild als Startframe“ gebaut, nicht committet; Prüfung in der Oberfläche steht aus, CORS-Regel am R2-Bucket fehlt) |
 
 ## Das Ziel in einem Absatz
 
@@ -144,3 +144,7 @@ Nachfolger ist `gemini-omni-1.2-flash` über die Interactions API. `/v1/videos` 
 Gemini-Durchleitung schon (Eintrag im LiteLLM mit öffentlichem Namen ohne Präfix). Gebaut nach ADR 0003, Messwerte in
 `docs/pruefstand/litellm/bericht-omni-durchleitung.md`. Offen: Prüfung in der Oberfläche nach dem Push, und ob der Gateway
 die Omni-Kosten auf den Schlüssel bucht (bei der Messung nicht).
+
+**Etappe 3, Nachtrag 06.11.2026:** Omni setzt eigene Videos über `previous_interaction_id` fort (gemessen bis 12 s, laut Google bis 30 s),
+das Studio merkt sich dafür Kennung und Länge je Video. Dazu der Knopf „Letztes Bild als Startframe“ im Browser. Offen bei Rico:
+CORS-Regel am R2-Bucket setzen, beides live prüfen. Details ADR 0003, Nachtrag 06.11.

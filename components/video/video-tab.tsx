@@ -9,6 +9,7 @@ import {
   Save,
   ImagePlus,
   RotateCcw,
+  FastForward,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
@@ -16,8 +17,13 @@ import { FittedVideo } from "@/components/ui/fitted-video";
 import { VideoSettings } from "./video-settings";
 import { VideoStarters } from "./video-starters";
 import { useVideoSettings } from "@/hooks/useVideoSettings";
-import { getVideoCost } from "@/lib/models";
-import { bildFuerUpload, antwortLesen } from "@/lib/client-image";
+import {
+  getVideoCost,
+  extendDurationsFor,
+  VIDEO_MAX_TOTAL_SECONDS,
+  type VideoDuration,
+} from "@/lib/models";
+import { bildFuerUpload, letztesBildAusVideo, antwortLesen } from "@/lib/client-image";
 import type { GalleryImage } from "@/hooks/useGallery";
 
 type FrameSource =
@@ -39,6 +45,18 @@ function toImageRef(f: FrameSource) {
 const POLL_INTERVAL_MS = 4000;
 const MAX_POLL_ATTEMPTS = 90; // sechs Minuten
 
+/** Was die Bibliothek an den Video-Reiter übergibt. */
+export interface VideoFollowUp {
+  kind: "extend" | "lastFrame";
+  item: GalleryImage;
+}
+
+/** Anhängbare Längen für ein Video, leer wenn es sich nicht fortsetzen lässt. */
+function fortsetzbarUm(video: GalleryImage | null): VideoDuration[] {
+  if (!video?.canExtend) return [];
+  return extendDurationsFor(video.durationSec ?? 0);
+}
+
 interface VideoTabProps {
   galleryImages: GalleryImage[];
   credits: number;
@@ -46,6 +64,8 @@ interface VideoTabProps {
   setCredits: (value: number) => void;
   pendingStartFrame: GalleryImage | null;
   onConsumePending: () => void;
+  pendingAction: VideoFollowUp | null;
+  onConsumePendingAction: () => void;
 }
 
 export function VideoTab({
@@ -55,6 +75,8 @@ export function VideoTab({
   setCredits,
   pendingStartFrame,
   onConsumePending,
+  pendingAction,
+  onConsumePendingAction,
 }: VideoTabProps) {
   const {
     model,
@@ -70,6 +92,10 @@ export function VideoTab({
   // Nur ein Startbild: Das Endbild ist mit ADR 0002 (Video über die
   // Videoschnittstelle des Gateways) entfallen.
   const [startFrame, setStartFrame] = useState<FrameSource | null>(null);
+  // Fortsetzen (ADR 0003, Nachtrag 06.11.2026): Omni knüpft an dieses Video an
+  // und gibt das ganze, verlängerte Video zurück. Schließt ein Startbild aus.
+  const [extendFrom, setExtendFrom] = useState<GalleryImage | null>(null);
+  const [isGrabbingFrame, setIsGrabbingFrame] = useState(false);
   const [isGenerating, setIsGenerating] = useState(false);
   const [progressText, setProgressText] = useState<string>("");
   const [error, setError] = useState("");
@@ -82,6 +108,7 @@ export function VideoTab({
     if (!pendingStartFrame) return;
     // Only image mediaType makes sense as a frame
     if (pendingStartFrame.mediaType.startsWith("image/")) {
+      setExtendFrom(null);
       setStartFrame({
         source: "gallery",
         id: pendingStartFrame.id,
@@ -92,13 +119,47 @@ export function VideoTab({
     onConsumePending();
   }, [pendingStartFrame, onConsumePending]);
 
+  const startExtend = useCallback((video: GalleryImage) => {
+    setResult(null);
+    setError("");
+    setStartFrame(null);
+    setPrompt("");
+    setExtendFrom(video);
+  }, []);
+
+  const grabLastFrame = useCallback(async (video: GalleryImage) => {
+    setError("");
+    setIsGrabbingFrame(true);
+    try {
+      const frame = await letztesBildAusVideo(video.url);
+      setExtendFrom(null);
+      setStartFrame(frame);
+      setResult(null);
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : "Das letzte Bild ließ sich nicht lesen.");
+    } finally {
+      setIsGrabbingFrame(false);
+    }
+  }, []);
+
+  // Übergabe aus der Bibliothek: Fortsetzen oder letztes Bild als Startframe.
+  useEffect(() => {
+    if (!pendingAction) return;
+    if (pendingAction.kind === "extend") startExtend(pendingAction.item);
+    else void grabLastFrame(pendingAction.item);
+    onConsumePendingAction();
+  }, [pendingAction, onConsumePendingAction, startExtend, grabLastFrame]);
+
   const handleUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     e.target.value = "";
     if (!file) return;
     // Ein Startbild je Anfrage, es bekommt das ganze Budget (Prüfstand S4).
     bildFuerUpload(file)
-      .then(setStartFrame)
+      .then((frame) => {
+        setExtendFrom(null);
+        setStartFrame(frame);
+      })
       .catch((err: unknown) =>
         setError(err instanceof Error ? err.message : "Bild konnte nicht gelesen werden.")
       );
@@ -107,6 +168,7 @@ export function VideoTab({
   const handleSelectGalleryAsFrame = (img: GalleryImage) => {
     // Only images work as frames
     if (!img.mediaType.startsWith("image/")) return;
+    setExtendFrom(null);
     setStartFrame({
       source: "gallery",
       id: img.id,
@@ -114,6 +176,14 @@ export function VideoTab({
       mediaType: img.mediaType,
     });
   };
+
+  // Beim Fortsetzen gelten nur die Längen, mit denen das Video unter der
+  // Obergrenze bleibt. Passt die gemerkte Dauer nicht, gilt die längste erlaubte.
+  const extendDurations = fortsetzbarUm(extendFrom);
+  const effectiveDuration: VideoDuration =
+    extendFrom && !extendDurations.includes(duration)
+      ? extendDurations[extendDurations.length - 1] ?? duration
+      : duration;
 
   const handleGenerate = useCallback(async () => {
     if (!prompt.trim()) return;
@@ -130,8 +200,9 @@ export function VideoTab({
           prompt,
           model,
           aspectRatio,
-          duration,
-          startFrame: startFrame ? toImageRef(startFrame) : undefined,
+          duration: effectiveDuration,
+          startFrame: startFrame && !extendFrom ? toImageRef(startFrame) : undefined,
+          extendFrom: extendFrom ? { id: extendFrom.id } : undefined,
         }),
       });
       const startData = await antwortLesen(startRes);
@@ -145,7 +216,8 @@ export function VideoTab({
       const jobId = String(startData.jobId || "");
       if (!jobId) throw new Error("Keine Vorgangskennung erhalten");
 
-      setProgressText("Dein Video wird generiert…");
+      const laeuft = extendFrom ? "Dein Video wird fortgesetzt…" : "Dein Video wird generiert…";
+      setProgressText(laeuft);
 
       let attempts = 0;
       while (true) {
@@ -167,11 +239,12 @@ export function VideoTab({
           const video = statusData.video as GalleryImage;
           setResult(video);
           addVideo(video);
+          setExtendFrom(null);
           break;
         }
 
         setProgressText(
-          `Dein Video wird generiert… (${attempts * (POLL_INTERVAL_MS / 1000)}s)`
+          `${laeuft} (${attempts * (POLL_INTERVAL_MS / 1000)}s)`
         );
 
         if (attempts > MAX_POLL_ATTEMPTS) {
@@ -190,8 +263,9 @@ export function VideoTab({
     prompt,
     model,
     aspectRatio,
-    duration,
+    effectiveDuration,
     startFrame,
+    extendFrom,
     addVideo,
     setCredits,
   ]);
@@ -199,12 +273,13 @@ export function VideoTab({
   const handleNew = () => {
     setResult(null);
     setStartFrame(null);
+    setExtendFrom(null);
     setError("");
   };
 
   if (!isLoaded) return null;
 
-  const cost = getVideoCost(model, duration);
+  const cost = getVideoCost(model, effectiveDuration);
   const imageGalleryItems = galleryImages.filter((g) =>
     g.mediaType.startsWith("image/")
   );
@@ -239,7 +314,30 @@ export function VideoTab({
                 className="rounded-xl overflow-hidden border border-border bg-black"
               />
             </div>
-            <div className="flex gap-2 shrink-0">
+            <div className="flex flex-wrap justify-center gap-2 shrink-0">
+              {fortsetzbarUm(result).length > 0 && (
+                <Button
+                  onClick={() => startExtend(result)}
+                  variant="secondary"
+                  title={`Omni hängt an dieses Video an, bis höchstens ${VIDEO_MAX_TOTAL_SECONDS} Sekunden`}
+                >
+                  <FastForward className="h-4 w-4 mr-2" />
+                  Fortsetzen
+                </Button>
+              )}
+              <Button
+                onClick={() => grabLastFrame(result)}
+                variant="secondary"
+                disabled={isGrabbingFrame}
+                title="Nimmt das letzte Bild dieses Videos als Startframe für ein neues Video"
+              >
+                {isGrabbingFrame ? (
+                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                ) : (
+                  <ImagePlus className="h-4 w-4 mr-2" />
+                )}
+                Letztes Bild als Startframe
+              </Button>
               <Button onClick={handleNew} variant="secondary">
                 <Save className="h-4 w-4 mr-2" />
                 Fertig
@@ -251,8 +349,9 @@ export function VideoTab({
             <Loader2 className="h-10 w-10 animate-spin text-primary" />
             <p className="font-serif italic text-base">{progressText}</p>
             <p className="text-xs max-w-sm">
-              Video-Generierung dauert je nach Länge und Auslastung meist 20
-              Sekunden bis eine Minute. Lass diesen Tab so lange geöffnet.
+              {extendFrom
+                ? "Eine Fortsetzung dauert länger als ein neues Video, je nach Gesamtlänge eine bis drei Minuten. Lass diesen Tab so lange geöffnet."
+                : "Video-Generierung dauert je nach Länge und Auslastung meist 20 Sekunden bis eine Minute. Lass diesen Tab so lange geöffnet."}
             </p>
           </div>
         ) : (
@@ -282,7 +381,7 @@ export function VideoTab({
       )}
 
       {/* Gallery image strip for frame selection */}
-      {!result && !isGenerating && imageGalleryItems.length > 0 && (
+      {!result && !isGenerating && !extendFrom && imageGalleryItems.length > 0 && (
         <div className="shrink-0 px-3 sm:px-4 md:px-8 pb-2">
           <div className="max-w-3xl mx-auto">
             <p className="text-xs text-muted-foreground mb-2">
@@ -327,6 +426,37 @@ export function VideoTab({
         <div className="shrink-0 px-3 sm:px-4 md:px-8 py-3 sm:py-4">
           <div className="max-w-3xl mx-auto rounded-2xl border border-border bg-card overflow-hidden focus-within:border-primary/50 transition-colors">
             {/* Frame slots */}
+            {extendFrom ? (
+              <div className="flex items-center gap-3 px-3 py-3 border-b border-border/40">
+                <div className="relative h-16 w-16 shrink-0 rounded-md overflow-hidden border border-primary/50 bg-black">
+                  <video
+                    src={extendFrom.url}
+                    className="w-full h-full object-cover"
+                    muted
+                    playsInline
+                    preload="metadata"
+                  />
+                  <button
+                    onClick={() => setExtendFrom(null)}
+                    className="absolute top-0.5 right-0.5 h-4 w-4 rounded-full bg-black/70 text-white flex items-center justify-center hover:bg-black/90 transition-colors"
+                    title="Fortsetzen abbrechen"
+                  >
+                    <X className="h-3 w-3" />
+                  </button>
+                </div>
+                <div className="min-w-0">
+                  <p className="text-sm font-medium text-foreground flex items-center gap-1.5">
+                    <FastForward className="h-3.5 w-3.5 text-primary" />
+                    Video fortsetzen
+                  </p>
+                  <p className="text-xs text-muted-foreground">
+                    Bisher {extendFrom.durationSec ?? "?"} s, höchstens{" "}
+                    {VIDEO_MAX_TOTAL_SECONDS} s. Du bekommst das ganze, verlängerte
+                    Video als neuen Eintrag.
+                  </p>
+                </div>
+              </div>
+            ) : (
             <div className="flex items-center gap-3 px-3 py-3 border-b border-border/40">
               {/* Start */}
               <FrameSlot
@@ -347,13 +477,18 @@ export function VideoTab({
                 Startframe optional
               </p>
             </div>
+            )}
 
             {/* Prompt */}
             <div className="relative">
               <Textarea
                 value={prompt}
                 onChange={(e) => setPrompt(e.target.value)}
-                placeholder="Beschreibe das Video, das du generieren möchtest..."
+                placeholder={
+                  extendFrom
+                    ? "Beschreibe, wie das Video weitergeht..."
+                    : "Beschreibe das Video, das du generieren möchtest..."
+                }
                 className="min-h-[96px] max-h-[240px] resize-none thin-scrollbar border-0 bg-transparent shadow-none focus-visible:ring-0 focus-visible:ring-offset-0 px-4 py-3 pr-10"
                 rows={3}
                 onKeyDown={(e) => {
@@ -381,10 +516,12 @@ export function VideoTab({
               <VideoSettings
                 model={model}
                 aspectRatio={aspectRatio}
-                duration={duration}
+                duration={effectiveDuration}
                 onModelChange={setModel}
                 onAspectRatioChange={setAspectRatio}
                 onDurationChange={setDuration}
+                durations={extendFrom ? extendDurations : undefined}
+                extending={Boolean(extendFrom)}
               />
               <Button
                 onClick={handleGenerate}
@@ -399,8 +536,12 @@ export function VideoTab({
                   <Loader2 className="h-3.5 w-3.5 animate-spin" />
                 ) : (
                   <>
-                    <Film className="h-3.5 w-3.5 mr-1.5" />
-                    Video generieren
+                    {extendFrom ? (
+                      <FastForward className="h-3.5 w-3.5 mr-1.5" />
+                    ) : (
+                      <Film className="h-3.5 w-3.5 mr-1.5" />
+                    )}
+                    {extendFrom ? "Video fortsetzen" : "Video generieren"}
                     <span className="ml-1.5 text-[10px] opacity-70">
                       · {cost}
                     </span>

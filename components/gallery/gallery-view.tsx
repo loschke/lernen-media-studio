@@ -12,12 +12,20 @@ import {
   Check,
   ChevronLeft,
   ChevronRight,
+  FastForward,
+  ImagePlus,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
 import type { GalleryImage } from "@/hooks/useGallery";
+import { extendDurationsFor } from "@/lib/models";
+
+/** „Fortsetzen“ gibt es für Videos, die Omni kennt und die noch unter 30 s bleiben. */
+function kannFortsetzen(item: GalleryImage): boolean {
+  return Boolean(item.canExtend) && extendDurationsFor(item.durationSec ?? 0).length > 0;
+}
 
 type Filter = "all" | "image" | "video";
 
@@ -27,6 +35,7 @@ interface GalleryViewProps {
   onRemove: (id: string) => void;
   onLoadIntoEdit: (image: GalleryImage) => void;
   onLoadIntoVideo: (image: GalleryImage) => void;
+  onVideoFollowUp: (kind: "extend" | "lastFrame", video: GalleryImage) => void;
 }
 
 export function GalleryView({
@@ -35,6 +44,7 @@ export function GalleryView({
   onRemove,
   onLoadIntoEdit,
   onLoadIntoVideo,
+  onVideoFollowUp,
 }: GalleryViewProps) {
   const [filter, setFilter] = useState<Filter>("all");
   const [copiedId, setCopiedId] = useState<string | null>(null);
@@ -212,6 +222,28 @@ export function GalleryView({
                         </Button>
                       </>
                     )}
+                    {isVideo && (
+                      <>
+                        {kannFortsetzen(item) && (
+                          <Button
+                            size="icon-xs"
+                            variant="secondary"
+                            onClick={() => onVideoFollowUp("extend", item)}
+                            title="Fortsetzen"
+                          >
+                            <FastForward className="h-3.5 w-3.5" />
+                          </Button>
+                        )}
+                        <Button
+                          size="icon-xs"
+                          variant="secondary"
+                          onClick={() => onVideoFollowUp("lastFrame", item)}
+                          title="Letztes Bild als Startframe"
+                        >
+                          <ImagePlus className="h-3.5 w-3.5" />
+                        </Button>
+                      </>
+                    )}
                     <Button
                       size="icon-xs"
                       variant="secondary"
@@ -313,6 +345,39 @@ export function GalleryView({
                   </>
                 )}
               </div>
+              {lightboxItem.mediaType.startsWith("video/") && (
+                <div className="shrink-0 flex flex-wrap items-center gap-2 px-6 pt-1">
+                  {kannFortsetzen(lightboxItem) && (
+                    <Button
+                      size="sm"
+                      variant="secondary"
+                      onClick={() => {
+                        setLightboxIndex(null);
+                        onVideoFollowUp("extend", lightboxItem);
+                      }}
+                    >
+                      <FastForward className="h-4 w-4 mr-2" />
+                      Fortsetzen
+                    </Button>
+                  )}
+                  <Button
+                    size="sm"
+                    variant="secondary"
+                    onClick={() => {
+                      setLightboxIndex(null);
+                      onVideoFollowUp("lastFrame", lightboxItem);
+                    }}
+                  >
+                    <ImagePlus className="h-4 w-4 mr-2" />
+                    Letztes Bild als Startframe
+                  </Button>
+                  {lightboxItem.durationSec ? (
+                    <span className="text-xs text-muted-foreground">
+                      {lightboxItem.durationSec} s
+                    </span>
+                  ) : null}
+                </div>
+              )}
               {lightboxItem.prompt && (
                 <div className="shrink-0 px-6 pb-5 pt-1">
                   <p className="text-sm text-muted-foreground line-clamp-3">
