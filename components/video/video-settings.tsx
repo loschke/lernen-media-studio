@@ -140,7 +140,7 @@ export function VideoSettings({
               const n = parseInt(v, 10) as VideoDuration;
               onDurationChange(n);
             }}
-            className="justify-start gap-1.5"
+            className="justify-start gap-1.5 flex-wrap"
           >
             {VIDEO_DURATIONS.map((d) => (
               <ToggleGroupItem

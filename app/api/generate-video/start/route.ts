@@ -1,8 +1,8 @@
-// Video starten über die Videoschnittstelle des Gateways (ADR 0002, Weg b):
-// POST {MODELL_GATEWAY_URL}/v1/videos, JSON ohne Bild oder Multipart mit
-// `input_reference` als Startbild. Der Gateway reicht an Veo weiter, bucht die
-// Kosten sofort beim Start und gibt eine Vorgangskennung zurück, die die
-// Statusroute abfragt. Kein Google-Schlüssel mehr im Studio.
+// Video starten über die Gemini-Durchleitung des Gateways (ADR 0003):
+// POST {MODELL_GATEWAY_URL}/gemini/v1beta/interactions, Googles Interactions
+// API mit Gemini Omni Flash. `background: true` gibt sofort eine
+// Vorgangskennung zurück, die die Statusroute abfragt. Das Startbild geht als
+// Bild-Eingabe vor dem Prompt mit. Kein Google-Schlüssel im Studio.
 import {
   ALLOWED_VIDEO_MODEL_IDS,
   DEFAULT_VIDEO_MODEL,
@@ -10,8 +10,9 @@ import {
   DEFAULT_VIDEO_DURATION,
   VIDEO_ASPECT_RATIOS,
   VIDEO_DURATIONS,
-  VIDEO_SIZES,
+  VIDEO_RESOLUTION,
   getVideoCost,
+  resolveVideoModel,
   type VideoModelId,
   type VideoAspectRatio,
   type VideoDuration,
@@ -21,8 +22,8 @@ import { spendCredits, refundCredits } from "@/lib/credits";
 import { fetchImageBuffer, r2Configured } from "@/lib/r2";
 import {
   gatewayConfigured,
-  gatewayAuthHeaders,
-  gatewayVideoUrl,
+  gatewayGoogleHeaders,
+  gatewayInteractionsUrl,
   describeGatewayError,
   GATEWAY_MISSING_MESSAGE,
 } from "@/lib/gateway";
@@ -132,40 +133,39 @@ export async function POST(req: Request) {
   let credits = spend.remaining;
 
   try {
-    // Gemessen 15.10.2026 (scripts/veo-videos-pruefstand.mjs): `seconds` als
-    // Text, `size` als BREITExHÖHE, Startbild als Multipart `input_reference`
-    // (PNG und JPEG). Der Gateway antwortet in 1 bis 3 s mit der Kennung.
-    const felder = {
-      model,
-      prompt: body.prompt,
-      seconds: String(duration),
-      size: VIDEO_SIZES[aspectRatio],
-    };
-    let init: RequestInit;
+    // Gemessen 05.11.2026 (scripts/omni-durchleitung-pruefstand.mjs): Dauer
+    // als Text mit „s“, Auflösung und Seitenverhältnis in `response_format`,
+    // Startbild als Bild-Eingabe mit Base64 (wird zum ersten Bild, auf das
+    // Zielformat beschnitten). Der Gateway antwortet in rund 2 s mit der
+    // Kennung. `background` braucht `store: true`.
+    let input: unknown = body.prompt;
     if (body.startFrame) {
       const frame = await resolveFrame(body.startFrame, user.sub);
-      const fd = new FormData();
-      for (const [k, v] of Object.entries(felder)) fd.append(k, v);
-      fd.append(
-        "input_reference",
-        new Blob([new Uint8Array(frame.buffer)], { type: frame.mimeType }),
-        `start.${frame.mimeType.split("/")[1] || "png"}`
-      );
-      init = { method: "POST", headers: gatewayAuthHeaders(), body: fd };
-    } else {
-      init = {
-        method: "POST",
-        headers: { ...gatewayAuthHeaders(), "Content-Type": "application/json" },
-        body: JSON.stringify(felder),
-      };
+      input = [
+        { type: "image", data: frame.buffer.toString("base64"), mime_type: frame.mimeType },
+        { type: "text", text: body.prompt },
+      ];
     }
 
-    const res = await fetch(gatewayVideoUrl(""), {
-      ...init,
+    const res = await fetch(gatewayInteractionsUrl(""), {
+      method: "POST",
+      headers: { ...gatewayGoogleHeaders(), "Content-Type": "application/json" },
+      body: JSON.stringify({
+        model: resolveVideoModel(model),
+        input,
+        response_format: {
+          type: "video",
+          aspect_ratio: aspectRatio,
+          resolution: VIDEO_RESOLUTION,
+          duration: `${duration}s`,
+        },
+        background: true,
+        store: true,
+      }),
       signal: AbortSignal.timeout(50_000),
     });
     const text = await res.text();
-    let data: { id?: string; error?: { message?: string } } = {};
+    let data: { id?: string; status?: string; error?: { message?: string } } = {};
     try {
       data = JSON.parse(text);
     } catch {
@@ -173,6 +173,9 @@ export async function POST(req: Request) {
     }
     if (!res.ok) {
       throw new Error(data.error?.message || `Gateway ${res.status}: ${text.slice(0, 200)}`);
+    }
+    if (data.status === "failed" || data.status === "cancelled") {
+      throw new Error(data.error?.message || `Anbieter meldet ${data.status}`);
     }
     if (!isValidVideoJobId(data.id)) {
       throw new Error("Gateway hat keine gültige Vorgangskennung geliefert.");

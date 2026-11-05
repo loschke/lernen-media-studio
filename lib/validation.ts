@@ -3,7 +3,7 @@
  * signal — refuse early, before hitting Gemini.
  */
 export const MAX_PROMPT_CHARS = 2000;
-export const MAX_VIDEO_PROMPT_CHARS = 1024; // Veo API hard limit
+export const MAX_VIDEO_PROMPT_CHARS = 1024; // eigene Grenze gegen Missbrauch (früher die harte Grenze von Veo)
 export const MAX_REF_IMAGES = 3;
 export const MAX_UPLOAD_BYTES = 10 * 1024 * 1024; // 10 MB per uploaded image
 export const ALLOWED_IMAGE_MIME_TYPES = [
@@ -21,13 +21,12 @@ export function base64ByteLength(data: string): number {
 }
 
 /**
- * Vorgangskennung der Videoschnittstelle des Gateways (ADR 0002), damit die
- * Statusroute keine beliebigen Pfade an den Gateway reicht. Gemessen
- * 15.10.2026: `video_` plus Base64 (etwa 190 Zeichen, enthält Anbieter,
- * Modell und die Google-Operation).
+ * Vorgangskennung der Interactions API (ADR 0003), damit die Statusroute keine
+ * beliebigen Pfade an den Gateway reicht. Gemessen 05.11.2026: `v1_` plus
+ * URL-sicheres Base64, 70 Zeichen. Erlaubt sind nur Zeichen, die in einem
+ * Pfadabschnitt nichts anrichten.
  */
 export function isValidVideoJobId(id: unknown): id is string {
   if (typeof id !== "string") return false;
-  if (id.length < 7 || id.length > 1024) return false;
-  return /^video_[A-Za-z0-9+/=_-]+$/.test(id);
+  return /^[A-Za-z0-9_-]{10,512}$/.test(id);
 }

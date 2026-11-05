@@ -10,9 +10,9 @@ interface Starter {
   prompt: string;
 }
 
-// Vier Beispiel-Prompts entlang des Veo-Prompting-Frameworks:
-// Subject → Action → Scene → Camera → Style/Lighting → Audio.
-// Englisch, weil Veo damit am besten umgeht.
+// Vier Beispiel-Prompts entlang des Prompting-Frameworks für Videomodelle
+// (für Veo geschrieben, gilt für Gemini Omni weiter):
+// Subject → Action → Scene → Camera → Style/Lighting → Audio. Auf Englisch.
 const STARTERS: Starter[] = [
   {
     id: "cinematic",

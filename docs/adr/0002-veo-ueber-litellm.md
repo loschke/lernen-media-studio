@@ -1,7 +1,7 @@
 # ADR 0002: Video (Veo 3.1) über LiteLLM statt direkt bei Google
 
 - Datum: 2026-10-15
-- Status: akzeptiert am 15.10.2026 (Rico, Entscheidungsseite Sammlung `antworten`: s1 bis s3 „passt“, f2 a, f3 a; f1 im Chat: „ich nehme b, das ist ein seminar tool, kein profitool, dann nehmen wir endframe raus, ich denke zum demonstrieren reicht startframe“)
+- Status: überholt durch ADR 0003 am 05.11.2026 (Google hat die Veo-3.1-Previews am 22.10.2026 abgeschaltet, `/v1/videos` kann den Nachfolger Omni nicht). Davor: akzeptiert am 15.10.2026 (Rico, Entscheidungsseite Sammlung `antworten`: s1 bis s3 „passt“, f2 a, f3 a; f1 im Chat: „ich nehme b, das ist ein seminar tool, kein profitool, dann nehmen wir endframe raus, ich denke zum demonstrieren reicht startframe“)
 - Bezug: ADR 0001 (Bild und Chat am Gateway, Env-Namen `MODELL_GATEWAY_URL`, `MODELL_GATEWAY_KEY`), ADR 0084 in `build-jetzt-superagents` (ein virtueller Schlüssel je App)
 - Entscheidungsseite: <https://claude.ai/artifact/U6oXjjnWiPKqvBeEeJrDXf> (Sammlung `antworten`, veröffentlicht 15.10. Nacht)
 

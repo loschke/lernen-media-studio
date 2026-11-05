@@ -105,56 +105,50 @@ export function sizeForAspectRatio(ratio: unknown): ImageSize {
   return ASPECT_RATIO_SIZES[DEFAULT_ASPECT_RATIO];
 }
 
-// --- Video Models (Veo 3.1 über die Videoschnittstelle des Gateways, ADR 0002)
-// Die Kennungen sind die öffentlichen Modellnamen im LiteLLM. Nur Startbild;
-// das Endbild ist mit Weg b entfallen (Rico, 15.10.2026). Credits je Dauer
-// (Rico, 15.10. nachts, nach dem Prüfstand): rund 1,3 Cent je Credit wie bei
-// den Bildern, aus den Sekundenpreisen des Gateways (Lite 0,05 $, Fast 0,10 $,
-// Standard 0,40 $ je Sekunde) gerundet.
+// --- Video (Gemini Omni Flash über die Gemini-Durchleitung des Gateways, ADR 0003)
+// Google hat die Veo-3.1-Previews am 22.10.2026 abgeschaltet, Nachfolger ist
+// Omni über die Interactions API. Die Kennung ist der öffentliche Modellname
+// im LiteLLM, ohne Anbieter-Präfix: Die Durchleitung reicht ihn wörtlich an
+// Google weiter. Credits je Dauer (Vorschlag 05.11.2026): 720p kostet bei
+// Google rund 0,07 $ je Sekunde, ein Credit steht wie bei den Bildern für rund
+// 1,3 Cent.
 
 export const VIDEO_MODELS = [
   {
-    id: "veo-3.1-lite-generate-preview",
-    label: "Veo 3.1 Lite",
-    costs: { 4: 15, 6: 25, 8: 30 },
-  },
-  {
-    id: "veo-3.1-fast-generate-preview",
-    label: "Veo 3.1 Fast",
-    costs: { 4: 30, 6: 45, 8: 60 },
-  },
-  {
-    id: "veo-3.1-generate-preview",
-    label: "Veo 3.1",
-    costs: { 4: 120, 6: 180, 8: 240 },
+    id: "gemini-omni-1.2-flash",
+    label: "Gemini Omni Flash",
+    costs: { 4: 20, 6: 30, 8: 45, 10: 55, 15: 80 },
   },
 ] as const;
 
 export type VideoModelId = (typeof VIDEO_MODELS)[number]["id"];
 export type VideoModel = (typeof VIDEO_MODELS)[number];
 
-export const DEFAULT_VIDEO_MODEL: VideoModelId = "veo-3.1-lite-generate-preview";
+export const DEFAULT_VIDEO_MODEL: VideoModelId = "gemini-omni-1.2-flash";
 
 export const ALLOWED_VIDEO_MODEL_IDS: ReadonlySet<string> = new Set(
   VIDEO_MODELS.map((m) => m.id)
 );
 
+/** Modellname am Gateway. `MODELL_VIDEO` überschreibt ihn, die Oberfläche zeigt weiter den Standardnamen. */
+export function resolveVideoModel(id: VideoModelId): string {
+  return process.env.MODELL_VIDEO || id;
+}
+
 export const VIDEO_ASPECT_RATIOS = ["16:9", "9:16"] as const;
 export type VideoAspectRatio = (typeof VIDEO_ASPECT_RATIOS)[number];
 export const DEFAULT_VIDEO_ASPECT_RATIO: VideoAspectRatio = "16:9";
 
-/** Seitenverhältnis → `size` der Videoschnittstelle (gemessen 15.10.2026: kommt so zurück). */
-export const VIDEO_SIZES: Record<VideoAspectRatio, string> = {
-  "16:9": "1280x720",
-  "9:16": "720x1280",
-};
+/** Feste Auflösung: hält Kosten und Dauer berechenbar (360p, 1080p und 4k hätten andere Preise). */
+export const VIDEO_RESOLUTION = "720p";
 
-export const VIDEO_DURATIONS = [4, 6, 8] as const;
+// Omni nimmt ganze Sekunden von 3 bis 15 an (gemessen 05.11.2026: 20 s gibt 400).
+export const VIDEO_DURATIONS = [4, 6, 8, 10, 15] as const;
 export type VideoDuration = (typeof VIDEO_DURATIONS)[number];
 export const DEFAULT_VIDEO_DURATION: VideoDuration = 6;
 
 /** Credits für ein Video mit Modell und Dauer. Unbekanntes Modell: teuerste Stufe. */
 export function getVideoCost(modelId: string, duration: VideoDuration): number {
   const model = VIDEO_MODELS.find((m) => m.id === modelId);
-  return model ? model.costs[duration] : 240;
+  return model ? model.costs[duration] : 80;
 }

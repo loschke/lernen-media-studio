@@ -1,12 +1,13 @@
-// Videostatus über die Videoschnittstelle des Gateways (ADR 0002, Weg b):
-// GET {MODELL_GATEWAY_URL}/v1/videos/{id}, bei `completed` GET .../content,
-// Datei nach R2. Der Schlüssel bleibt im Kopf, nie in der Adresse.
+// Videostatus über die Gemini-Durchleitung des Gateways (ADR 0003):
+// GET {MODELL_GATEWAY_URL}/gemini/v1beta/interactions/{id}. Bei `completed`
+// steckt das Video als Base64 in derselben Antwort, es geht von dort nach R2.
+// Der Schlüssel bleibt im Kopf, nie in der Adresse.
 import { getSessionId } from "@/lib/session";
 import { uploadMedia, getMediaUrl, r2Configured } from "@/lib/r2";
 import {
   gatewayConfigured,
-  gatewayAuthHeaders,
-  gatewayVideoUrl,
+  gatewayGoogleHeaders,
+  gatewayInteractionsUrl,
   GATEWAY_MISSING_MESSAGE,
 } from "@/lib/gateway";
 import { isValidVideoJobId, MAX_VIDEO_PROMPT_CHARS } from "@/lib/validation";
@@ -49,14 +50,15 @@ export async function POST(req: Request) {
       );
     }
 
-    const statusRes = await fetch(gatewayVideoUrl(`/${jobId}`), {
-      headers: gatewayAuthHeaders(),
-      signal: AbortSignal.timeout(20_000),
+    // Gemessen 05.11.2026: Abruf rund 0,8 s, solange das Video läuft. Die
+    // fertige Antwort trägt das Video (8 s in 720p: 5,3 MB, 3,3 s).
+    const statusRes = await fetch(gatewayInteractionsUrl(`/${jobId}`), {
+      headers: gatewayGoogleHeaders(),
+      signal: AbortSignal.timeout(45_000),
     });
     if (!statusRes.ok) {
-      // Richtung r1 (ADR 0002): Ein 403 beim ersten Abruf kam über diesen Weg
-      // einmal vor, danach normal. Er und 429 gelten als „noch nicht fertig“,
-      // die Oberfläche fragt ohnehin weiter.
+      // Wie bei ADR 0002: 403 und 429 gelten als „noch nicht fertig“, die
+      // Oberfläche fragt ohnehin weiter.
       if (statusRes.status === 403 || statusRes.status === 429) {
         return json({ done: false }, 200);
       }
@@ -66,9 +68,13 @@ export async function POST(req: Request) {
     const job = (await statusRes.json()) as {
       status?: string;
       error?: { message?: string } | null;
+      steps?: {
+        type?: string;
+        content?: { type?: string; data?: string; text?: string }[];
+      }[];
     };
 
-    if (job.status === "failed") {
+    if (job.status === "failed" || job.status === "cancelled") {
       return json(
         { done: true, error: job.error?.message || "Video-Generierung fehlgeschlagen" },
         200
@@ -78,19 +84,21 @@ export async function POST(req: Request) {
       return json({ done: false }, 200);
     }
 
-    const fileRes = await fetch(gatewayVideoUrl(`/${jobId}/content`), {
-      headers: gatewayAuthHeaders(),
-      signal: AbortSignal.timeout(40_000),
-    });
-    if (!fileRes.ok) {
-      throw new Error(`Video-Download fehlgeschlagen (${fileRes.status})`);
-    }
-    const buffer = Buffer.from(await fileRes.arrayBuffer());
+    // Die Antwort enthält auch die Eingabe (Schritt `user_input`). Das Video
+    // steht in einem Schritt des Modells.
+    const ausgabe = (job.steps ?? [])
+      .filter((s) => s.type !== "user_input")
+      .flatMap((s) => s.content ?? []);
+    const video = ausgabe.find((c) => c.type === "video" && c.data);
+    const buffer = video?.data ? Buffer.from(video.data, "base64") : Buffer.alloc(0);
     if (buffer.length === 0) {
+      const hinweis = ausgabe.find((c) => c.type === "text" && c.text)?.text;
       return json(
         {
           done: true,
-          error: "Kein Video in der Antwort — eventuell hat ein Sicherheitsfilter gegriffen.",
+          error: hinweis
+            ? `Kein Video erhalten. Antwort des Modells: ${hinweis.slice(0, 300)}`
+            : "Kein Video in der Antwort. Eventuell hat ein Sicherheitsfilter gegriffen.",
         },
         200
       );

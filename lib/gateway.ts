@@ -3,8 +3,9 @@
 // Eine Adresse, ein virtueller Schlüssel je App. Bild und Bearbeitung laufen
 // über das OpenAI-Paket (/v1/images/*), der Chat über das Anthropic-Paket
 // (/v1/messages). Beide Pakete bekommen nur Adresse und Schlüssel umgebogen.
-// Video (Veo) läuft über die Videoschnittstelle des Gateways (/v1/videos,
-// ADR 0002), ohne Paket, mit fetch.
+// Video (Gemini Omni) läuft über die Gemini-Durchleitung des Gateways zur
+// Interactions API von Google (/gemini/v1beta/interactions, ADR 0003), ohne
+// Paket, mit fetch.
 
 import { createOpenAI } from "@ai-sdk/openai";
 import { createAnthropic } from "@ai-sdk/anthropic";
@@ -30,14 +31,18 @@ export function anthropicGateway() {
   return createAnthropic({ baseURL: baseURL(), apiKey: key });
 }
 
-/** Kopf für direkte Aufrufe des Gateways (Video). Schlüssel nie in der Adresse. */
-export function gatewayAuthHeaders(): Record<string, string> {
-  return { Authorization: `Bearer ${key}` };
+/**
+ * Kopf für die Gemini-Durchleitung (Video). Der Gateway erwartet den
+ * virtuellen Schlüssel dort, wo Google seinen eigenen erwartet, und tauscht
+ * ihn aus. Schlüssel nie in der Adresse.
+ */
+export function gatewayGoogleHeaders(): Record<string, string> {
+  return { "x-goog-api-key": key };
 }
 
-/** `gatewayVideoUrl("")` ist der Start, `gatewayVideoUrl("/<id>")` der Status, `"/<id>/content"` die Datei. */
-export function gatewayVideoUrl(pfad: string): string {
-  return `${url}/v1/videos${pfad}`;
+/** `gatewayInteractionsUrl("")` ist der Start, `gatewayInteractionsUrl("/<id>")` Status und Ergebnis. */
+export function gatewayInteractionsUrl(pfad: string): string {
+  return `${url}/gemini/v1beta/interactions${pfad}`;
 }
 
 export const GATEWAY_MISSING_MESSAGE =
@@ -47,7 +52,8 @@ export const GATEWAY_MISSING_MESSAGE =
  * Fehler des Gateways in Status und Text für die Oberfläche übersetzen.
  * Gemessen am 15.10.2026: unbekanntes Modell 403, falscher Schlüssel 401,
  * Stufe oder Größe ungültig 400, Budget des Schlüssels erschöpft als
- * "ExceededBudget"/"budget", Rate-Limit 429.
+ * "ExceededBudget"/"budget", Rate-Limit 429. Gemessen am 05.11.2026: ein
+ * beim Anbieter abgeschaltetes Modell kommt als 404 „is not found“ zurück.
  */
 export function describeGatewayError(
   error: unknown,
@@ -59,6 +65,16 @@ export function describeGatewayError(
       status: 500,
       error:
         "Das Modell ist beim KI-Gateway nicht freigegeben. Credits wurden zurückerstattet, bitte Rico Bescheid geben.",
+      details: message,
+    };
+  }
+  if (/NotFoundError|not[ _]found/i.test(message)) {
+    // Gemessen 05.11.2026: Google hatte die Veo-3.1-Previews abgeschaltet, der
+    // Gateway kannte die Namen noch und reichte Googles 404 durch.
+    return {
+      status: 502,
+      error:
+        "Das Modell gibt es beim Anbieter nicht mehr. Credits wurden zurückerstattet, bitte Rico Bescheid geben.",
       details: message,
     };
   }

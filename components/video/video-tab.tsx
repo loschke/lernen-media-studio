@@ -35,7 +35,9 @@ function toImageRef(f: FrameSource) {
     : { source: "upload", data: f.data, mediaType: f.mediaType };
 }
 
-const POLL_INTERVAL_MS = 7000;
+// Gemessen 05.11.2026: Omni braucht 20 bis 40 s, ein Abruf dauert unter 1 s.
+const POLL_INTERVAL_MS = 4000;
+const MAX_POLL_ATTEMPTS = 90; // sechs Minuten
 
 interface VideoTabProps {
   galleryImages: GalleryImage[];
@@ -143,7 +145,7 @@ export function VideoTab({
       const jobId = String(startData.jobId || "");
       if (!jobId) throw new Error("Keine Vorgangskennung erhalten");
 
-      setProgressText("Veo generiert dein Video…");
+      setProgressText("Dein Video wird generiert…");
 
       let attempts = 0;
       while (true) {
@@ -169,10 +171,10 @@ export function VideoTab({
         }
 
         setProgressText(
-          `Veo generiert dein Video… (${attempts * (POLL_INTERVAL_MS / 1000)}s)`
+          `Dein Video wird generiert… (${attempts * (POLL_INTERVAL_MS / 1000)}s)`
         );
 
-        if (attempts > 60) {
+        if (attempts > MAX_POLL_ATTEMPTS) {
           throw new Error(
             "Zeitüberschreitung beim Warten auf das Video. Bitte später erneut versuchen."
           );
@@ -249,8 +251,8 @@ export function VideoTab({
             <Loader2 className="h-10 w-10 animate-spin text-primary" />
             <p className="font-serif italic text-base">{progressText}</p>
             <p className="text-xs max-w-sm">
-              Video-Generierung dauert je nach Modell und Auslastung 30 Sekunden
-              bis mehrere Minuten. Du kannst diesen Tab geöffnet lassen.
+              Video-Generierung dauert je nach Länge und Auslastung meist 20
+              Sekunden bis eine Minute. Lass diesen Tab so lange geöffnet.
             </p>
           </div>
         ) : (

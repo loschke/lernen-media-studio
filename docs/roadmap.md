@@ -7,13 +7,14 @@
 
 ## Wo wir stehen
 
-Etappe 1 und 2 sind gepusht und live geprüft. Stand je Etappe
+Etappe 1 und 2 sind gepusht und live geprüft, Etappe 3 ist gebaut und wartet auf Ricos Go. Stand je Etappe
 hier, bis es eine Seite mit Sammlung `fortschritt` gibt.
 
 | # | Etappe | Stand |
 |---|---|---|
 | 1 | Studio an LiteLLM: Bilder über GPT Image 2.5, Chat über Haiku 5.5 | laeuft (gepusht 15.10., Commit 6ebcbb2, Prüfung live) |
-| 2 | Video (Veo) über LiteLLM | erledigt (15.10. Nacht, Commits 849225f, 5379d73, 1ac74c4, e2da29b; Prüfstand live S1 bis S6 Funktioniert, Gesamt Go im Chat) |
+| 2 | Video (Veo) über LiteLLM | erledigt (15.10. Nacht, Commits 849225f, 5379d73, 1ac74c4, e2da29b; Prüfstand live S1 bis S6 Funktioniert, Gesamt Go im Chat). Seit 22.10.2026 außer Betrieb: Google hat die Veo-3.1-Previews abgeschaltet |
+| 3 | Video mit Gemini Omni Flash über die Gemini-Durchleitung | laeuft (05.11.2026 gemessen und gebaut, nicht committet; Prüfung in der Oberfläche steht aus) |
 
 ## Das Ziel in einem Absatz
 
@@ -21,7 +22,9 @@ Das Studio hängt mit einem eigenen virtuellen Schlüssel an Ricos LiteLLM. Dort
 Nutzung, Kosten und Budget je App sichtbar, und ein Modellwechsel ist ein Eintrag im
 Gateway statt ein Umbau im Studio. Bilder entstehen mit GPT Image 2.5 in zwei Angeboten
 (schnell mit Flare, Premium mit Sunburst), der Chat läuft auf Haiku 5.5. Video (Veo)
-läuft seit Etappe 2 über die Videoschnittstelle des Gateways, ohne Google-Schlüssel und ohne Endbild.
+lief seit Etappe 2 über die Videoschnittstelle des Gateways, ohne Google-Schlüssel und ohne Endbild.
+Seit Etappe 3 (05.11.2026) erzeugt Gemini Omni Flash die Videos, über die Gemini-Durchleitung des
+Gateways, weil Google Veo 3.1 abgeschaltet hat.
 
 ## Die Etappen in Baureihenfolge
 
@@ -29,6 +32,7 @@ läuft seit Etappe 2 über die Videoschnittstelle des Gateways, ohne Google-Schl
 |---|---|---|---|---|
 | 1 | LiteLLM-Umstellung Bild und Chat | ADR 0001 | Entscheidungsseite, Prüfstand-Skript gegen den Gateway, Bau in drei Stücken (Bild, Bearbeitung, Chat), Prüfstand in der Oberfläche | Vorsession Fable, Bau Opus |
 | 2 | Video (Veo) über LiteLLM | ADR 0002 | Messung Durchleitung gegen `/v1/videos`, Entscheidungsseite, Bau in zwei Routen, Prüfstand mit einem Lite-Video live | Vorsession und Bau Fable (Bau klein) |
+| 3 | Video mit Gemini Omni Flash | ADR 0003 | Ursache gemessen, Durchleitung gemessen (`scripts/omni-durchleitung-pruefstand.mjs`), Bau in zwei Routen und Modelltabelle, Prüfung live durch Rico | eine Session, Fable |
 
 ## Fertig ist die Umstellung, wenn
 
@@ -134,3 +138,9 @@ je Video gegen die Credits 10 / 20 / 40 gehalten (Checkpoint ADR 0002).
 
 Nachtrag Credits (15.10. Nacht, Commit e2da29b): Video-Credits nach Dauer (Lite 15/25/30, Fast 30/45/60,
 Standard 120/180/240), Startguthaben 500, rund 1,3 Cent je Credit überall. Vercel `DEFAULT_CREDITS` = 500 (Rico).
+
+**Etappe 3 (05.11.2026):** Videos scheiterten seit dem 22.10., weil Google die Veo-3.1-Previews abgeschaltet hat.
+Nachfolger ist `gemini-omni-1.2-flash` über die Interactions API. `/v1/videos` des Gateways kann Omni nicht, die
+Gemini-Durchleitung schon (Eintrag im LiteLLM mit öffentlichem Namen ohne Präfix). Gebaut nach ADR 0003, Messwerte in
+`docs/pruefstand/litellm/bericht-omni-durchleitung.md`. Offen: Prüfung in der Oberfläche nach dem Push, und ob der Gateway
+die Omni-Kosten auf den Schlüssel bucht (bei der Messung nicht).
