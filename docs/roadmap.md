@@ -209,3 +209,7 @@ Next-App, mit Probe und Grenze beim Guthaben. Das neue Projekt `C:\Users\losch\P
 fünf ADRs; die Entwürfe 0006 bis 0008 hier sind dorthin umgezogen. In diesem Repo steht aus Etappe 4 nur noch die Abschaltung des Studios
 aus, auf Ricos Wort (ADR 0005). Die Dateien dieser Etappe (`docs/adr/0004` bis `0008`, `docs/seiten/`, diese Roadmap) sind uncommittet und
 warten auf Ricos Go.
+
+Zusatz 06.11.2026: Rico hat die Reihenfolge der Etappen im neuen Projekt bestätigt („Passt“) und das Go für die Commits gegeben („go“).
+Hier: `ffcf839` auf `main`, nicht gepusht, Rico pusht selbst. Im neuen Projekt: `e29766c`. Dort liegt der Starterprompt für die Vorsession
+von Etappe 1.
