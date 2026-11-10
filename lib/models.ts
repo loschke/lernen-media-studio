@@ -1,25 +1,31 @@
-// --- Bild-Angebote (GPT Image 2.5 über LiteLLM, ADR 0001) -----------------
+// --- Bild-Angebote (GPT Image über LiteLLM, ADR 0001) ----------------------
 //
 // Die Oberfläche kennt zwei Angebote (Klassen), nicht Modelle: „Schnell“ und
 // „Premium“. Der Modellname steht klein darunter. Welches Modell dahinter
 // läuft, legt `modell` fest; die Umgebung kann es je Angebot überschreiben
 // (MODELL_BILD_SCHNELL, MODELL_BILD_PREMIUM), dann zeigt die Oberfläche weiter
-// den Standardnamen. Preis je Bild hängt an der Stufe (`quality`), nicht am
-// Modell: medium ≈ 1,3 Cent, high ≈ 5,3 Cent (gemessen 15.10.2026).
+// den Standardnamen.
+//
+// Stand 10.11.2026 (Ricos Entscheidung, ADR 0001, Nachtrag): Schnell ist
+// 2.5 Flare auf low, Premium ist 2.6 Sunburst auf medium. 2.5 Sunburst ist am
+// Schlüssel des Studios nicht mehr freigegeben (403). Der Preis je Token ist
+// bei 2.5 und 2.6 gleich, 2.6 rechnet aber bei den kleinen Stufen rund dreimal
+// so viele Bild-Token ab. Gemessen bei 1024x1024: 2.5 low ≈ 0,6 Cent,
+// 2.6 medium ≈ 4,4 Cent (2.6 high ≈ 5,3 Cent, 2.6 low ≈ 2,5 Cent).
 
 export const IMAGE_MODELS = [
   {
     id: "schnell",
     label: "Schnell",
     modell: "gpt-image-2.5-flare",
-    quality: "medium",
+    quality: "low",
     cost: 1,
   },
   {
     id: "premium",
     label: "Premium",
-    modell: "gpt-image-2.5-sunburst",
-    quality: "high",
+    modell: "gpt-image-2.6-sunburst",
+    quality: "medium",
     cost: 4,
   },
 ] as const;

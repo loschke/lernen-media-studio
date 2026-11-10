@@ -39,7 +39,7 @@ const teuer = args.includes('--teuer');
 // Dieselben Namen wie später im Studio (ADR 0001): MODELL_CHAT, MODELL_BILD_SCHNELL, MODELL_BILD_PREMIUM.
 const CHAT_MODELLE = (process.env.MODELL_CHAT ? [process.env.MODELL_CHAT] : ['claude-haiku-5-5', 'claude-haiku-5.5', 'claude-haiku-4-5']);
 const BILD_FLARE = process.env.MODELL_BILD_SCHNELL || 'gpt-image-2.5-flare';
-const BILD_SUNBURST = process.env.MODELL_BILD_PREMIUM || 'gpt-image-2.5-sunburst';
+const BILD_SUNBURST = process.env.MODELL_BILD_PREMIUM || 'gpt-image-2.6-sunburst';
 const PROMPT = 'editorial illustration of a lighthouse keeper reading a letter, golden hour, low angle shot, risograph print texture';
 
 const bericht = [];

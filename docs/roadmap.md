@@ -26,8 +26,9 @@ hier, bis es eine Seite mit Sammlung `fortschritt` gibt.
 
 Das Studio hängt mit einem eigenen virtuellen Schlüssel an Ricos LiteLLM. Dort sind
 Nutzung, Kosten und Budget je App sichtbar, und ein Modellwechsel ist ein Eintrag im
-Gateway statt ein Umbau im Studio. Bilder entstehen mit GPT Image 2.5 in zwei Angeboten
-(schnell mit Flare, Premium mit Sunburst), der Chat läuft auf Haiku 5.5. Video (Veo)
+Gateway statt ein Umbau im Studio. Bilder entstehen mit GPT Image in zwei Angeboten
+(schnell mit 2.5 Flare auf low, Premium mit 2.6 Sunburst auf medium, Stand 10.11.2026,
+ADR 0001, Nachtrag), der Chat läuft auf Haiku 5.5. Video (Veo)
 lief seit Etappe 2 über die Videoschnittstelle des Gateways, ohne Google-Schlüssel und ohne Endbild.
 Seit Etappe 3 (05.11.2026) erzeugt Gemini Omni Flash die Videos, über die Gemini-Durchleitung des
 Gateways, weil Google Veo 3.1 abgeschaltet hat.
@@ -213,3 +214,8 @@ warten auf Ricos Go.
 Zusatz 06.11.2026: Rico hat die Reihenfolge der Etappen im neuen Projekt bestätigt („Passt“) und das Go für die Commits gegeben („go“).
 Hier: `ffcf839` auf `main`, nicht gepusht, Rico pusht selbst. Im neuen Projekt: `e29766c`. Dort liegt der Starterprompt für die Vorsession
 von Etappe 1.
+
+**Modellpflege 10.11.2026 (keine eigene Etappe):** Der Schlüssel des Studios sieht `gpt-image-2.5-sunburst` nicht mehr, dafür die
+beiden 2.6-Modelle. Rico hat entschieden: Schnell ist 2.5 Flare auf `low`, Premium ist 2.6 Sunburst auf `medium`, Credits bleiben 1 und 4.
+Messwerte und Wortlaut in ADR 0001, Nachtrag 10.11.2026. Geändert und uncommittet, live erst mit Ricos Push. Das berührt f7 c nicht
+(die zwei Lücken bleiben offen) und f11 b nicht (die neue App entscheidet ihr Modell selbst). Bedingung: `gpt-image-2.5-flare` bleibt am Schlüssel.

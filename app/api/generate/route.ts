@@ -19,6 +19,7 @@ import { uploadImage, getImageUrl, r2Configured } from '@/lib/r2';
 import { MAX_PROMPT_CHARS } from '@/lib/validation';
 
 // Sunburst high: 40 s gemessen (15.10.2026). 120 s laut F4 a in ADR 0001.
+// Seit 10.11.2026 ist Premium 2.6 Sunburst medium: 31 s gemessen.
 export const maxDuration = 120;
 const GATEWAY_TIMEOUT_MS = 110_000;
 

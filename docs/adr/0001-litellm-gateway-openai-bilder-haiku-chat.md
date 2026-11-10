@@ -163,3 +163,35 @@ Nachweise:
 ## Nachtrag 2026-10-15: Go, Commit, Push
 
 Rico: „es ist grad niemand in der app, bitte commit und push“. Commit `6ebcbb2` auf `main`, gepusht am 15.10.2026 abends. Vercel-Variablen hat Rico selbst gesetzt: `MODELL_GATEWAY_URL`, `MODELL_GATEWAY_KEY`; `ANTHROPIC_API_KEY` entfernt. **Abweichung von der Roadmap:** Rico hat auch `GOOGLE_GENERATIVE_AI_API_KEY` in Vercel gelöscht, Video (Veo) ist live damit außer Betrieb, bis Veo über den Gateway läuft (nächste Etappe, Parkplatz-Auslöser gezogen). Die Prüfung der Oberfläche findet direkt in der Live-Umgebung statt, Prüfstand-Seite in `docs/roadmap.md`.
+
+## Nachtrag 2026-11-10: Schnell auf low, Premium auf 2.6 Sunburst medium
+
+Anlass: Rico wollte die Modelle am Gateway prüfen und aktualisieren. Der Schlüssel `lernen-media-studio` sieht `gpt-image-2.5-sunburst` nicht mehr (403 „not available for this API key“), dafür `gpt-image-2.6-flare` und `gpt-image-2.6-sunburst`. Premium zeigte im Code noch auf 2.5 Sunburst. Ob es live stand, ist nicht belegt (die Vercel-Umgebung war in der Session nicht lesbar).
+
+Gemessen am 10.11.2026 über den Gateway, Preis je Token bei 2.5 und 2.6 gleich (30 $ je 1M Bild-Token, laut Sekundärquellen und passend zu den gebuchten Kosten):
+
+| Aufruf | 2.5 | 2.6 |
+|---|---|---|
+| Erzeugen low, 1024x1024 | 0,6 Cent (196 Token, 15.10.) | 2,5 Cent (824 Token), Flare 8 s |
+| Erzeugen medium, 1024x1024 | 1,3 Cent (439 Token, 15.10.) | 4,4 Cent (1449 Token), Flare 11 s, Sunburst 30 s |
+| Erzeugen high, 1024x1024 | 5,3 Cent (1756 Token, 15.10.) | 5,3 Cent (1756 Token), Sunburst 51 s |
+| Erzeugen low, 2048x1152, Flare | 0,5 Cent (157 Token), 14 s | nicht gemessen |
+| Erzeugen medium, 2048x1152 | 1,1 Cent (367 Token, 15.10.) | 3,7 Cent (1212 Token), Flare 12 s, Sunburst 31 s |
+| Bearbeiten low, Flare | 1,5 Cent, 14 s | 3,7 Cent, 14 s |
+| Bearbeiten medium | 1,6 Cent (Flare, 15.10.) | 5,9 Cent, Flare 15 s, Sunburst 34 s |
+| Bearbeiten high, Sunburst | 6,2 Cent (15.10.) | 7,0 Cent, 55 s |
+
+Bearbeitungen ohne Größenangabe kommen bei beiden Generationen als 1254x1254 zurück (Eingabe 1024x1024), und das Eingabebild wird inzwischen mit 1024 Bild-Token berechnet (15.10.: 33 Eingabe-Token).
+
+**Entscheidung (Rico im Chat, 10.11.2026):** „Flare 2.5 auf low bleibt der Standard, Sunburst 2.6 Medium wird Premium“.
+
+- Schnell: `gpt-image-2.5-flare`, Stufe `low` (vorher `medium`), 1 Credit.
+- Premium: `gpt-image-2.6-sunburst`, Stufe `medium` (vorher 2.5 Sunburst `high`), 4 Credits.
+
+Die Credits bleiben. Ein Credit steht für rund 1,3 Cent: Schnell liegt beim Erzeugen darunter und beim Bearbeiten knapp darüber (1,5 Cent), Premium liegt beim Erzeugen darunter (3,7 bis 4,4 Cent) und beim Bearbeiten darüber (5,9 Cent gegen 5,2 Cent).
+
+Geändert (nicht committet): `lib/models.ts` (Modell und Stufen), `.env.example`, `scripts/litellm-pruefstand.mjs` (Standard für Premium), Kommentare in `app/api/generate/route.ts` und `app/api/edit/route.ts`.
+
+Nachweise: `tsc --noEmit` ohne Fehler. 2.6 Sunburst über `@ai-sdk/openai` mit Gateway-Adresse, also den Weg der Routen: Erzeugen und Bearbeiten laufen, keine Warnungen (gemessen mit Stufe `high`, 54 s und 58 s). Die neuen Stufen direkt gegen den Gateway: vier Aufrufe, alle 200. Nicht geprüft: die Oberfläche selbst.
+
+Bedingung: `gpt-image-2.5-flare` muss am Schlüssel bleiben, sonst steht Schnell mit demselben 403.

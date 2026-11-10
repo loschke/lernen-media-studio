@@ -28,6 +28,7 @@ import {
 } from '@/lib/validation';
 
 // Sunburst high beim Bearbeiten: 55 s gemessen (15.10.2026). 120 s laut F4 a.
+// Seit 10.11.2026 ist Premium 2.6 Sunburst medium: 34 s gemessen.
 export const maxDuration = 120;
 const GATEWAY_TIMEOUT_MS = 110_000;
 
